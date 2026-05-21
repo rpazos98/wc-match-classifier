@@ -70,7 +70,7 @@ def _find_similar(
 
 class FavoritePlayerScorer(BaseScorer):
     name   = "Favorite Player"
-    weight = 0.08
+    weight = 0.07
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         squads = [s for s in (ctx.match.home_squad, ctx.match.away_squad) if s]

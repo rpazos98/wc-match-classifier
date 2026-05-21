@@ -33,7 +33,7 @@ def _kickoff_in_window(kickoff_utc, window: TimeWindow) -> float:
 
 class TimeAvailabilityScorer(BaseScorer):
     name   = "Time Availability"
-    weight = 0.21
+    weight = 0.15
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         windows = ctx.profile.time_windows

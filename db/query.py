@@ -308,6 +308,43 @@ def team_group_map() -> dict[str, str]:
     return {r["fifa_code"]: r["group_letter"] for r in rows}
 
 
+def team_attack_scores() -> dict[str, float]:
+    """Returns {fifa_code: attack_score 0.0-1.0} based on avg shooting of top 11 players."""
+    con = _connect()
+    rows = con.execute("""
+        WITH ranked AS (
+            SELECT fifa_code, shooting,
+                   ROW_NUMBER() OVER (PARTITION BY fifa_code ORDER BY overall DESC) AS rn
+            FROM players
+            WHERE fifa_code IS NOT NULL
+        )
+        SELECT fifa_code, AVG(shooting) / 99.0 AS attack_score
+        FROM ranked
+        WHERE rn <= 11
+        GROUP BY fifa_code
+    """).fetchall()
+    con.close()
+    return {r["fifa_code"]: r["attack_score"] for r in rows}
+
+
+def team_fifa_ranks() -> dict[str, int]:
+    """Returns {fifa_code: fifa_rank} for all teams with a known rank."""
+    con = _connect()
+    rows = con.execute(
+        "SELECT fifa_code, fifa_rank FROM team_metadata WHERE fifa_rank IS NOT NULL"
+    ).fetchall()
+    con.close()
+    return {r["fifa_code"]: r["fifa_rank"] for r in rows}
+
+
+def wc_h2h_meetings() -> dict[frozenset, int]:
+    """Returns {frozenset({a, b}): n_wc_meetings} for all WC H2H pairs."""
+    con = _connect()
+    rows = con.execute("SELECT team_a, team_b, matches FROM wc_h2h").fetchall()
+    con.close()
+    return {frozenset({r["team_a"], r["team_b"]}): r["matches"] for r in rows}
+
+
 def load_teams() -> list[dict]:
     con = _connect()
     rows = con.execute("""

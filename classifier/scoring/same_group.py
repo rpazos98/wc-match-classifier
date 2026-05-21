@@ -12,7 +12,7 @@ def _groups() -> dict[str, str]:
 
 class SameGroupScorer(BaseScorer):
     name   = "Same Group"
-    weight = 0.06
+    weight = 0.04
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         if ctx.match.stage != Stage.GROUP:

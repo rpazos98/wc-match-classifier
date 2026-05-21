@@ -109,6 +109,22 @@ def _rivals() -> dict[str, set[str]]:
     except Exception:
         return {}
 
+@lru_cache(maxsize=1)
+def _wc_meetings() -> dict[frozenset, int]:
+    try:
+        from db.query import wc_h2h_meetings
+        return wc_h2h_meetings()
+    except Exception:
+        return {}
+
+@lru_cache(maxsize=1)
+def _quality_scores() -> dict[str, float]:
+    try:
+        from db.query import team_quality_scores
+        return team_quality_scores()
+    except Exception:
+        return {}
+
 
 def _rivalry_raw(code_a: str, code_b: str) -> float:
     h2h  = _wc_h2h()
@@ -179,17 +195,54 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         profile.favorite_players,
     )
 
+    # Match Drama: margin + penalty bonus
+    try:
+        hs      = int(float(row.get("home_score", 0) or 0))
+        as_     = int(float(row.get("away_score", 0) or 0))
+        margin  = abs(hs - as_)
+        base    = {0: 1.0, 1: 0.75, 2: 0.40}.get(margin, 0.10)
+        pen     = bool(row.get("home_penalty", ""))
+        drama_raw = min(1.0, base + (0.25 if pen else 0.0))
+    except (ValueError, TypeError):
+        drama_raw = 0.5
+
+    # Goal Fest: total goals scored
+    try:
+        total_goals   = int(float(row.get("home_score", 0) or 0)) + int(float(row.get("away_score", 0) or 0))
+        goal_fest_raw = min(1.0, total_goals / 5.0)
+    except (ValueError, TypeError):
+        goal_fest_raw = 0.5
+
+    # Upset Potential: quality gap proxy (current ratings as historical approximation)
+    quality = _quality_scores()
+    q_home  = quality.get(home_code, 0.5) if home_code else 0.5
+    q_away  = quality.get(away_code, 0.5) if away_code else 0.5
+    upset_raw = min(1.0, abs(q_home - q_away) * 2)
+
+    # Narrative Weight: WC meeting count
+    pair          = frozenset({home_code, away_code}) if home_code and away_code else frozenset()
+    n_meetings    = _wc_meetings().get(pair, 0)
+    if n_meetings == 0:   narrative_raw = 0.4
+    elif n_meetings <= 2: narrative_raw = 0.55
+    elif n_meetings <= 4: narrative_raw = 0.70
+    elif n_meetings <= 6: narrative_raw = 0.85
+    else:                 narrative_raw = 1.0
+
     return {
         "Favorite Team":     fav_team_raw,
-        "Time Availability": 0.5,   # neutral — not applicable historically
+        "Time Availability": 0.5,         # neutral — not applicable historically
         "Match Stage":       stage_raw,
-        "Form":              0.5,   # neutral
+        "Form":              0.5,         # neutral
         "Favorite Player":   fp_raw,
-        "Dark Horse":        0.0,   # skip
+        "Match Drama":       drama_raw,
+        "Goal Fest":         goal_fest_raw,
+        "Dark Horse":        0.0,         # skip
+        "Upset Potential":   upset_raw,
         "Same Group":        fav_team_raw if row["Round"] in ("Group stage", "First round") else 0.0,
-        "Team Strength":     0.5,   # neutral
+        "Narrative Weight":  narrative_raw,
+        "Team Strength":     0.5,         # neutral
         "Rivalry":           rivalry_raw,
-        "Confederation":     0.0,   # skip
+        "Confederation":     0.0,         # skip
     }
 
 

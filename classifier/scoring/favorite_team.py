@@ -10,7 +10,7 @@ def _rivals() -> dict[str, set[str]]:
 
 class FavoriteTeamScorer(BaseScorer):
     name   = "Favorite Team"
-    weight = 0.28
+    weight = 0.22
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         favs = {t.upper() for t in ctx.profile.favorite_teams}

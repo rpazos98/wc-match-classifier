@@ -24,7 +24,7 @@ _STAGE_LABELS: dict[Stage, str] = {
 
 class MatchStageScorer(BaseScorer):
     name   = "Match Stage"
-    weight = 0.12
+    weight = 0.10
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         stage = ctx.match.stage

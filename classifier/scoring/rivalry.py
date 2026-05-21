@@ -16,7 +16,7 @@ def _all_scores() -> dict[frozenset, float]:
 
 class RivalryScorer(BaseScorer):
     name   = "Rivalry"
-    weight = 0.02
+    weight = 0.01
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home

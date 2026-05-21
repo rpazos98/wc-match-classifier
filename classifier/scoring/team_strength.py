@@ -18,7 +18,7 @@ def _dark_horses() -> set[str]:
 
 class TeamStrengthScorer(BaseScorer):
     name   = "Team Strength"
-    weight = 0.04
+    weight = 0.03
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home

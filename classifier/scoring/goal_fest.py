@@ -3,14 +3,14 @@ from . import BaseScorer, ScoringContext
 
 
 @lru_cache(maxsize=1)
-def _form_scores() -> dict[str, float]:
-    from db.query import team_form_scores
-    return team_form_scores()
+def _attack_scores() -> dict[str, float]:
+    from db.query import team_attack_scores
+    return team_attack_scores()
 
 
-class FormScorer(BaseScorer):
-    name   = "Form"
-    weight = 0.09
+class GoalFestScorer(BaseScorer):
+    name   = "Goal Fest"
+    weight = 0.06
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home
@@ -18,18 +18,15 @@ class FormScorer(BaseScorer):
         if home == "TBD" and away == "TBD":
             return 0.5, ""
 
-        scores = _form_scores()
+        scores = _attack_scores()
         known  = [t for t in (home, away) if t != "TBD"]
         vals   = [scores[t] for t in known if t in scores]
 
         if not vals:
-            return 0.5, ""  # abstain: no form data
+            return 0.5, ""
 
         raw = sum(vals) / len(vals)
 
-        hot = [t for t in known if scores.get(t, 0) >= 0.75]
-        if hot:
-            names = " y ".join(hot)
-            return raw, f"{names} en gran momento de forma"
-
+        if raw >= 0.75:
+            return raw, "Equipos con alto potencial ofensivo — partido con goles esperado"
         return raw, ""
