@@ -25,25 +25,36 @@ from .learning import SCORER_NAMES
 # ── Name → FIFA code ──────────────────────────────────────────────────────────
 
 _NAME_TO_CODE: dict[str, str] = {
-    "Argentina":      "ARG", "Brazil":         "BRA", "France":    "FRA",
-    "Germany":        "GER", "Spain":          "ESP", "England":   "ENG",
-    "Portugal":       "POR", "Netherlands":    "NED", "Uruguay":   "URU",
+    # Current / recent
+    "Argentina":      "ARG", "Brazil":         "BRA", "France":      "FRA",
+    "Germany":        "GER", "Spain":          "ESP", "England":     "ENG",
+    "Portugal":       "POR", "Netherlands":    "NED", "Uruguay":     "URU",
     "Colombia":       "COL", "Morocco":        "MAR", "United States": "USA",
-    "Croatia":        "CRO", "Switzerland":    "SUI", "Belgium":   "BEL",
-    "Japan":          "JPN", "Korea Republic": "KOR", "Australia": "AUS",
-    "Canada":         "CAN", "Ecuador":        "ECU", "Senegal":   "SEN",
-    "Ghana":          "GHA", "Nigeria":        "NGA", "Cameroon":  "CMR",
-    "Egypt":          "EGY", "Mexico":         "MEX", "Poland":    "POL",
-    "Denmark":        "DEN", "Serbia":         "SRB", "Sweden":    "SWE",
-    "Iceland":        "ISL", "Russia":         "RUS", "Peru":      "PER",
-    "Panama":         "PAN", "Tunisia":        "TUN", "Costa Rica":"CRC",
+    "Croatia":        "CRO", "Switzerland":    "SUI", "Belgium":     "BEL",
+    "Japan":          "JPN", "Korea Republic": "KOR", "Australia":   "AUS",
+    "Canada":         "CAN", "Ecuador":        "ECU", "Senegal":     "SEN",
+    "Ghana":          "GHA", "Nigeria":        "NGA", "Cameroon":    "CMR",
+    "Egypt":          "EGY", "Mexico":         "MEX", "Poland":      "POL",
+    "Denmark":        "DEN", "Serbia":         "SRB", "Sweden":      "SWE",
+    "Iceland":        "ISL", "Russia":         "RUS", "Peru":        "PER",
+    "Panama":         "PAN", "Tunisia":        "TUN", "Costa Rica":  "CRC",
     "Wales":          "WAL", "Qatar":          "QAT", "Saudi Arabia": "KSA",
-    "IR Iran":        "IRN", "Ivory Coast":    "CIV", "Algeria":   "ALG",
-    "Austria":        "AUT", "Norway":         "NOR", "Scotland":  "SCO",
-    "Jordan":         "JOR", "Uzbekistan":     "UZB", "Curacao":   "CUR",
+    "IR Iran":        "IRN", "Ivory Coast":    "CIV", "Algeria":     "ALG",
+    "Austria":        "AUT", "Norway":         "NOR", "Scotland":    "SCO",
+    "Jordan":         "JOR", "Uzbekistan":     "UZB", "Curacao":     "CUR",
     "Paraguay":       "PAR", "Bosnia and Herzegovina": "BIH",
     "Turkey":         "TUR", "Czech Republic": "CZE",
     "Cape Verde":     "CPV", "DR Congo":       "COD",
+    # 2010 / 2014 additions
+    "Chile":              "CHI", "Côte d'Ivoire":      "CIV",
+    "Greece":             "GRE", "Honduras":           "HON",
+    "Italy":              "ITA", "Korea DPR":          "PRK",
+    "New Zealand":        "NZL", "Slovakia":           "SVK",
+    "Slovenia":           "SVN", "South Africa":       "RSA",
+    # 2006 additions
+    "Angola":             "ANG", "Serbia and Montenegro": "SCG",
+    "Togo":               "TOG", "Trinidad and Tobago":   "TRI",
+    "Ukraine":            "UKR",
 }
 
 
@@ -117,14 +128,6 @@ def _wc_meetings() -> dict[frozenset, int]:
     except Exception:
         return {}
 
-@lru_cache(maxsize=1)
-def _quality_scores() -> dict[str, float]:
-    try:
-        from db.query import team_quality_scores
-        return team_quality_scores()
-    except Exception:
-        return {}
-
 
 def _rivalry_raw(code_a: str, code_b: str) -> float:
     h2h  = _wc_h2h()
@@ -138,6 +141,43 @@ def _rivalry_raw(code_a: str, code_b: str) -> float:
 def _is_rival(code: str, favs: set[str]) -> bool:
     rv = _rivals()
     return any(code in rv.get(f, set()) for f in favs)
+
+
+@lru_cache(maxsize=1)
+def _star_power_by_team() -> dict[str, float]:
+    """
+    Returns {fifa_code: best_star_tier 0.0–1.0} from FC26 overall ratings.
+    Tier = (overall - 87) / 4 for overall >= 88.  Used as historical proxy.
+    """
+    try:
+        from db.query import player_overall_ratings, _connect
+        ratings = player_overall_ratings()
+        con = _connect()
+        rows = con.execute(
+            "SELECT fifa_code, short_name FROM players WHERE fifa_code IS NOT NULL"
+        ).fetchall()
+        con.close()
+    except Exception:
+        return {}
+
+    best: dict[str, float] = {}
+    for r in rows:
+        overall = ratings.get(r["short_name"])
+        if overall is not None and overall >= 88:
+            tier = (overall - 87) / 4.0
+            code = r["fifa_code"]
+            if tier > best.get(code, 0.0):
+                best[code] = tier
+    return best
+
+
+def _star_power_raw(home_code: str | None, away_code: str | None) -> float:
+    stars = _star_power_by_team()
+    s_home = stars.get(home_code, 0.0) if home_code else 0.0
+    s_away = stars.get(away_code, 0.0) if away_code else 0.0
+    if s_home == 0.0 and s_away == 0.0:
+        return 0.0
+    return (s_home + s_away) / 2.0
 
 
 # ── Goal scorer parsing ───────────────────────────────────────────────────────
@@ -166,19 +206,102 @@ def _fav_player_raw(home_goal: str, away_goal: str, fav_players: list[str]) -> f
 
 # ── Feature extraction ────────────────────────────────────────────────────────
 
+def _parse_match_date(row: dict) -> "date | None":
+    from datetime import date
+    try:
+        return date.fromisoformat(row.get("Date", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_goal_minutes(goal_str: str) -> list[int]:
+    """Parse 'Name · minute|Name · minute' → [int, ...] list of minutes."""
+    minutes = []
+    for part in (goal_str or "").split("|"):
+        m = re.search(r'·\s*(\d+)', part)
+        if m:
+            minutes.append(int(m.group(1)))
+    return minutes
+
+
+def _chaos_raw(row: dict) -> float:
+    """
+    Enhanced chaos score using actual match events:
+    - Total goals (weight 0.40)
+    - Late goals 75+ min (weight 0.30)
+    - Red cards (weight 0.15)
+    - Penalty shootout (weight 0.15)
+    """
+    try:
+        hs = int(float(row.get("home_score", 0) or 0))
+        as_ = int(float(row.get("away_score", 0) or 0))
+        total_goals = hs + as_
+    except (ValueError, TypeError):
+        total_goals = 0
+
+    home_mins = _parse_goal_minutes(row.get("home_goal", ""))
+    away_mins = _parse_goal_minutes(row.get("away_goal", ""))
+    late_goals = sum(1 for m in home_mins + away_mins if m >= 75)
+
+    red_cards = bool(row.get("home_red_card", "")) or bool(row.get("away_red_card", ""))
+    penalty_so = bool(row.get("home_penalty", ""))
+
+    goal_c  = min(1.0, total_goals / 5.0)
+    late_c  = min(1.0, late_goals / 2.0)
+    card_c  = 1.0 if red_cards else 0.0
+    pen_c   = 1.0 if penalty_so else 0.0
+
+    return min(1.0, goal_c * 0.40 + late_c * 0.30 + card_c * 0.15 + pen_c * 0.15)
+
+
+def _elo_competitive_tension(home_code: str | None, away_code: str | None, match_date: "date | None") -> float:
+    """Competitive Tension: entropy^0.7 * (0.4 + 0.6 * prestige). Mirrors CompetitiveTensionScorer."""
+    if not home_code or not away_code:
+        return 0.5
+    import math
+    from classifier.elo import win_probability, elo_at_date
+    p_h, p_d, p_a = win_probability(home_code, away_code, as_of=match_date, neutral=True)
+    H = -sum(p * math.log(p) for p in (p_h, p_d, p_a) if p > 0)
+    entropy = H / math.log(3)
+    avg_elo = (elo_at_date(home_code, match_date) + elo_at_date(away_code, match_date)) / 2
+    prestige = max(0.0, min(1.0, (avg_elo - 1400) / 700))
+    return min(1.0, (entropy ** 0.7) * (0.4 + 0.6 * prestige))
+
+
+def _elo_upset(home_code: str | None, away_code: str | None, match_date: "date | None") -> float:
+    """Upset Potential: gap × threat. Mirrors UpsetPotentialScorer."""
+    if not home_code or not away_code:
+        return 0.5
+    from classifier.elo import win_probability, elo_at_date
+    p_home, _, p_away = win_probability(home_code, away_code, as_of=match_date, neutral=True)
+    elo_h = elo_at_date(home_code, match_date)
+    elo_a = elo_at_date(away_code, match_date)
+    gap = min(1.0, abs(elo_h - elo_a) / 400.0)
+    total_dec = p_home + p_away
+    p_under = min(p_home, p_away) / total_dec if total_dec > 0 else 0.5
+    threat = min(1.0, p_under / 0.30)
+    return min(1.0, gap * threat * 4.0)
+
+
+def _elo_form(home_code: str | None, away_code: str | None, match_date: "date | None") -> float:
+    """ELO momentum for both teams up to match date, weighted toward hotter team."""
+    from classifier.elo import form_delta
+    known = [(c, form_delta(c, as_of=match_date)) for c in (home_code, away_code) if c]
+    if not known:
+        return 0.5
+    vals = [(delta + 1.0) / 2.0 for _, delta in known]
+    return (sum(vals) + max(vals)) / (len(vals) + 1)
+
+
 def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
     home_code = name_to_code(row["home_team"])
     away_code = name_to_code(row["away_team"])
-    favs = {t.upper() for t in profile.favorite_teams}
+    affs = profile.team_affinities
+
+    match_date = _parse_match_date(row)
 
     # Favorite Team
-    fav_team_raw = 0.0
-    if home_code in favs or away_code in favs:
-        fav_team_raw = 1.0
-    elif home_code and _is_rival(home_code, favs):
-        fav_team_raw = 0.35
-    elif away_code and _is_rival(away_code, favs):
-        fav_team_raw = 0.35
+    fav_team_raw = max(affs.get(home_code or "", 0.0), affs.get(away_code or "", 0.0))
 
     # Match Stage
     stage_raw = _ROUND_RAW.get(row["Round"], 0.5)
@@ -195,54 +318,43 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         profile.favorite_players,
     )
 
-    # Match Drama: margin + penalty bonus
-    try:
-        hs      = int(float(row.get("home_score", 0) or 0))
-        as_     = int(float(row.get("away_score", 0) or 0))
-        margin  = abs(hs - as_)
-        base    = {0: 1.0, 1: 0.75, 2: 0.40}.get(margin, 0.10)
-        pen     = bool(row.get("home_penalty", ""))
-        drama_raw = min(1.0, base + (0.25 if pen else 0.0))
-    except (ValueError, TypeError):
-        drama_raw = 0.5
+    # Competitive Tension: entropy × prestige (pre-match ELO)
+    competitive_tension_raw = _elo_competitive_tension(home_code, away_code, match_date)
 
-    # Goal Fest: total goals scored
-    try:
-        total_goals   = int(float(row.get("home_score", 0) or 0)) + int(float(row.get("away_score", 0) or 0))
-        goal_fest_raw = min(1.0, total_goals / 5.0)
-    except (ValueError, TypeError):
-        goal_fest_raw = 0.5
+    # Chaos Potential: enhanced score using match events
+    goal_fest_raw = _chaos_raw(row)
 
-    # Upset Potential: quality gap proxy (current ratings as historical approximation)
-    quality = _quality_scores()
-    q_home  = quality.get(home_code, 0.5) if home_code else 0.5
-    q_away  = quality.get(away_code, 0.5) if away_code else 0.5
-    upset_raw = min(1.0, abs(q_home - q_away) * 2)
+    # Upset Potential: pre-match ELO probability gap
+    upset_raw = _elo_upset(home_code, away_code, match_date)
 
-    # Narrative Weight: WC meeting count
-    pair          = frozenset({home_code, away_code}) if home_code and away_code else frozenset()
-    n_meetings    = _wc_meetings().get(pair, 0)
-    if n_meetings == 0:   narrative_raw = 0.4
-    elif n_meetings <= 2: narrative_raw = 0.55
-    elif n_meetings <= 4: narrative_raw = 0.70
-    elif n_meetings <= 6: narrative_raw = 0.85
-    else:                 narrative_raw = 1.0
+    # Narrative: WC meeting count + rivalry intensity combined
+    pair       = frozenset({home_code, away_code}) if home_code and away_code else frozenset()
+    n_meetings = _wc_meetings().get(pair, 0)
+
+    def _meetings_score(n: int) -> float:
+        if n == 0:  return 0.0
+        if n <= 2:  return 0.45
+        if n <= 4:  return 0.65
+        if n <= 6:  return 0.85
+        return 1.0
+
+    wc_combined    = max(_meetings_score(n_meetings), rivalry_raw)
+    narrative_raw  = min(1.0, 0.65 * wc_combined + 0.35 * rivalry_raw)
+
+    # Form: ELO momentum up to match date
+    form_raw = _elo_form(home_code, away_code, match_date)
 
     return {
-        "Favorite Team":     fav_team_raw,
-        "Time Availability": 0.5,         # neutral — not applicable historically
-        "Match Stage":       stage_raw,
-        "Form":              0.5,         # neutral
-        "Favorite Player":   fp_raw,
-        "Match Drama":       drama_raw,
-        "Goal Fest":         goal_fest_raw,
-        "Dark Horse":        0.0,         # skip
-        "Upset Potential":   upset_raw,
-        "Same Group":        fav_team_raw if row["Round"] in ("Group stage", "First round") else 0.0,
-        "Narrative Weight":  narrative_raw,
-        "Team Strength":     0.5,         # neutral
-        "Rivalry":           rivalry_raw,
-        "Confederation":     0.0,         # skip
+        "Favorite Team":        fav_team_raw,
+        "Match Stage":          stage_raw,
+        "Competitive Tension":  competitive_tension_raw,
+        "Chaos Potential":      goal_fest_raw,
+        "Favorite Player":      fp_raw,
+        "Upset Potential":      upset_raw,
+        "Form":                 form_raw,
+        "Star Power":           _star_power_raw(home_code, away_code),
+        "Narrative":            narrative_raw,
+        "Same Group":           fav_team_raw if row["Round"] in ("Group stage", "First round") else 0.0,
     }
 
 
@@ -282,7 +394,7 @@ def sample_historical_pairs(
     pairs: list[tuple[dict, dict]] = []
 
     # Prioritise matches involving fav team or high-stage matches for richer signal
-    favs      = {t.upper() for t in profile.favorite_teams}
+    favs      = {t for t, a in profile.team_affinities.items() if a > 0}
     fav_rows  = [r for r in candidates if name_to_code(r["home_team"]) in favs
                                        or name_to_code(r["away_team"]) in favs]
     late_rows = [r for r in candidates if _ROUND_RAW.get(r["Round"], 0) >= 0.75]
@@ -351,3 +463,113 @@ def sample_historical_pairs(
         }
 
     return [{"match_a": _info(a), "match_b": _info(b)} for a, b in pairs]
+
+
+def _match_id(row: dict) -> str:
+    hc = name_to_code(row["home_team"]) or row["home_team"]
+    ac = name_to_code(row["away_team"]) or row["away_team"]
+    return f"hist_{row['Year']}_{row['Date']}_{hc}_{ac}"
+
+
+def _match_info(row: dict, profile: UserProfile) -> dict:
+    hc  = name_to_code(row["home_team"])
+    ac  = name_to_code(row["away_team"])
+    hs  = row.get("home_score", "?")
+    as_ = row.get("away_score", "?")
+    hp  = row.get("home_penalty", "")
+    ap  = row.get("away_penalty", "")
+    score_str = f"{hs}–{as_}"
+    if hp and ap:
+        score_str += f" (pen {hp}–{ap})"
+
+    round_lbl = _ROUND_LABEL.get(row["Round"], row["Round"])
+
+    def _merge_goals(regular: str, penalty: str) -> str:
+        parts = [g for g in (regular or "").split("|") if g.strip()]
+        for g in (penalty or "").split("|"):
+            g = g.strip()
+            if g:
+                parts.append(g)
+        def _minute(s: str) -> int:
+            m = re.search(r"(\d+)", s.split("·")[-1] if "·" in s else "")
+            return int(m.group(1)) if m else 999
+        parts.sort(key=_minute)
+        return "|".join(parts)
+
+    return {
+        "match_id":      _match_id(row),
+        "home":          hc or row["home_team"],
+        "away":          ac or row["away_team"],
+        "stage":         "historical",
+        "stage_label":   f"{row['Year']} · {round_lbl}",
+        "kickoff_local": row.get("Date", ""),
+        "venue":         row.get("Venue", ""),
+        "historical":    True,
+        "year":          row["Year"],
+        "round":         round_lbl,
+        "result":        score_str,
+        "home_goals":    _merge_goals(row.get("home_goal", ""), row.get("home_penalty_goal", "")),
+        "away_goals":    _merge_goals(row.get("away_goal", ""), row.get("away_penalty_goal", "")),
+        "raw":           _extract_features(row, profile),
+    }
+
+
+def sample_historical_matches(
+    profile: UserProfile,
+    n: int = 15,
+    years: list[int] | None = None,
+    seed: int | None = None,
+    exclude_ids: list[str] | None = None,
+) -> list[dict]:
+    """
+    Return n individual historical WC matches for single-match rating.
+
+    Weighted random sample: fav-team matches (3×), knockout matches (2×),
+    rest (1×). Supports exclude_ids to skip already-seen matches.
+    Default years: 2006–2022 (all recent World Cups with good data coverage).
+    """
+    if years is None:
+        years = [2006, 2010, 2014, 2018, 2022]
+
+    excluded   = set(exclude_ids or [])
+    year_set   = {str(y) for y in years}
+    history    = _load_history()
+    candidates = [
+        r for r in history
+        if r["Year"] in year_set
+        and r["home_score"] not in ("", "NA")
+        and r["away_score"] not in ("", "NA")
+        and name_to_code(r["home_team"]) is not None
+        and name_to_code(r["away_team"]) is not None
+        and _match_id(r) not in excluded
+    ]
+
+    if not candidates:
+        return []
+
+    rng  = random.Random(seed)
+    favs = {t for t, a in profile.team_affinities.items() if a > 0}
+
+    # Weighted pool: each match appears 1, 2, or 3 times based on relevance
+    weighted: list[dict] = []
+    for r in candidates:
+        hc = name_to_code(r["home_team"])
+        ac = name_to_code(r["away_team"])
+        is_fav  = hc in favs or ac in favs
+        is_late = _ROUND_RAW.get(r["Round"], 0) >= 0.75
+        weight  = 3 if is_fav else (2 if is_late else 1)
+        weighted.extend([r] * weight)
+
+    rng.shuffle(weighted)
+
+    # Deduplicate while preserving shuffle order
+    seen_ids: set[str] = set()
+    pool: list[dict]   = []
+    for r in weighted:
+        mid = _match_id(r)
+        if mid not in seen_ids:
+            seen_ids.add(mid)
+            pool.append(r)
+
+    sample = pool[:min(n, len(pool))]
+    return [_match_info(r, profile) for r in sample]

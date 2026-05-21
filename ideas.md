@@ -20,3 +20,7 @@ Based on the calculated stats we should also try and predict results and determi
 
 
 https://www.kaggle.com/datasets/piterfm/fifa-football-world-cup
+
+
+
+HAY UNA INCOHERENCIA ENTRE LOS PARTIDOS SIMULADOS Y LOS RESULTADOS QUE SE MUESTRAN

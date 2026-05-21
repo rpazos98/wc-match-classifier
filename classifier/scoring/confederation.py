@@ -19,7 +19,7 @@ class ConfederationScorer(BaseScorer):
             return 0.0, ""
 
         conf = _conf_map()
-        fav_confs = {conf.get(t.upper()) for t in ctx.profile.favorite_teams if t != "TBD"}
+        fav_confs = {conf.get(t) for t, a in ctx.profile.team_affinities.items() if a > 0}
         fav_confs.discard(None)
 
         if not fav_confs:

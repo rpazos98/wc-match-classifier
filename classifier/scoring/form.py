@@ -1,16 +1,15 @@
-from functools import lru_cache
 from . import BaseScorer, ScoringContext
 
 
-@lru_cache(maxsize=1)
-def _form_scores() -> dict[str, float]:
-    from db.query import team_form_scores
-    return team_form_scores()
-
-
 class FormScorer(BaseScorer):
+    """
+    Form / Momentum — teams trending upward based on ELO trajectory.
+
+    Measures ELO change over the last 8 matches for each team.
+    form_delta in [-1, 1]; mapped to [0, 1] then weighted toward hotter team.
+    """
     name   = "Form"
-    weight = 0.09
+    weight = 0.06
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home
@@ -18,18 +17,20 @@ class FormScorer(BaseScorer):
         if home == "TBD" and away == "TBD":
             return 0.5, ""
 
-        scores = _form_scores()
-        known  = [t for t in (home, away) if t != "TBD"]
-        vals   = [scores[t] for t in known if t in scores]
+        from classifier.elo import form_delta
+        known = [t for t in (home, away) if t != "TBD"]
+        if not known:
+            return 0.5, ""
 
-        if not vals:
-            return 0.5, ""  # abstain: no form data
+        # form_delta in [-1, 1] → normalise to [0, 1]
+        deltas = {t: (form_delta(t) + 1.0) / 2.0 for t in known}
+        vals   = list(deltas.values())
 
-        raw = sum(vals) / len(vals)
+        # Weight toward hotter team: (sum + max) / (n + 1)
+        raw = (sum(vals) + max(vals)) / (len(vals) + 1)
 
-        hot = [t for t in known if scores.get(t, 0) >= 0.75]
+        hot = [t for t, v in deltas.items() if v >= 0.65]
         if hot:
             names = " y ".join(hot)
             return raw, f"{names} en gran momento de forma"
-
         return raw, ""

@@ -1,160 +1,168 @@
 """
-Preference learning for scoring weight optimization.
+Preference learning via Bayesian correlation weighting.
 
-Presents the user with pairwise match comparisons and learns optimal scorer
-weights via logistic regression on the preference diffs.
+User rates historical matches 1–10.  For each scorer, compute Pearson r
+between its raw values and user ratings.  Positive correlations → higher
+weight.  Blend data-driven weights with DEFAULT_WEIGHTS using a confidence
+ramp: at few ratings the prior dominates, at ~30+ the data takes over.
+
+No decision trees, no forests — works well from 5 ratings onward.
 """
 from __future__ import annotations
 
-import random
 import numpy as np
 
 from .models import Match, UserProfile
 
+# Must match the scorers in build_default_engine() exactly.
 SCORER_NAMES: list[str] = [
     "Favorite Team",
-    "Time Availability",
     "Match Stage",
-    "Form",
+    "Competitive Tension",
+    "Chaos Potential",
     "Favorite Player",
-    "Match Drama",
-    "Goal Fest",
-    "Dark Horse",
     "Upset Potential",
+    "Form",
+    "Star Power",
+    "Narrative",
     "Same Group",
-    "Narrative Weight",
-    "Team Strength",
-    "Rivalry",
-    "Confederation",
 ]
 
-_STAGE_LABELS: dict[str, str] = {
-    "group":       "Grupos",
-    "r32":         "Ronda 32",
-    "r16":         "Octavos",
-    "qf":          "Cuartos",
-    "sf":          "Semifinal",
-    "third_place": "3er Lugar",
-    "final":       "FINAL",
+DEFAULT_WEIGHTS: dict[str, float] = {
+    "Favorite Team":        0.19,
+    "Match Stage":          0.18,
+    "Competitive Tension":  0.18,
+    "Chaos Potential":      0.14,
+    "Favorite Player":      0.07,
+    "Upset Potential":      0.06,
+    "Form":                 0.06,
+    "Star Power":           0.05,
+    "Narrative":            0.04,
+    "Same Group":           0.03,
 }
 
-
-def _score_all(matches: list[Match], profile: UserProfile) -> dict:
-    from . import build_default_engine
-    engine = build_default_engine()
-    return {m.match_id: engine.evaluate(m, profile) for m in matches}
+_RAMP_N = 30  # ratings needed for full data confidence
 
 
-def sample_pairs(
-    matches: list[Match],
-    profile: UserProfile,
-    n: int = 12,
-    seed: int | None = None,
-) -> list[dict]:
+def rating_to_label(r: float) -> str:
+    """Map a 1–10 mean rating to a category label."""
+    if r >= 7.5:
+        return "🔥 Imperdible"
+    if r >= 4.5:
+        return "👀 Tal Vez"
+    return "📺 Resumen"
+
+
+# ── Correlation-based weights ─────────────────────────────────────────────────
+
+def _pearson(x: np.ndarray, y: np.ndarray) -> float:
+    """Pearson r, 0.0 if constant or too few samples."""
+    if len(x) < 3:
+        return 0.0
+    sx, sy = float(np.std(x)), float(np.std(y))
+    if sx < 1e-9 or sy < 1e-9:
+        return 0.0
+    return float(np.corrcoef(x, y)[0, 1])
+
+
+def _correlation_weights(X: np.ndarray, y: np.ndarray) -> dict[str, float]:
     """
-    Sample n pairs for preference elicitation.
-
-    Strategy: 60% cross-tier (top vs bottom third by current score) for broad
-    calibration, 40% adjacent-score pairs for fine-grained discrimination.
-    A/B order is randomized to avoid position bias.
+    Compute weights from Pearson r between each scorer and user ratings.
+    Negative correlations → 0 (scorer hurts prediction, ignore it).
     """
-    rng    = random.Random(seed)
-    scored = sorted(matches, key=lambda m: _score_all(matches, profile)[m.match_id].total_score, reverse=True)
+    n_scorers = X.shape[1]
+    raw = np.array([max(0.0, _pearson(X[:, i], y)) for i in range(n_scorers)])
 
-    # One evaluation pass is enough — reuse results
-    results = _score_all(matches, profile)
-    scored  = sorted(matches, key=lambda m: results[m.match_id].total_score, reverse=True)
-    nm      = len(scored)
+    if raw.sum() < 1e-9:
+        return {name: 1.0 / n_scorers for name in SCORER_NAMES}
 
-    pairs: list[tuple[Match, Match]] = []
-    seen:  set[tuple[str, str]]      = set()
+    normed = raw / raw.sum()
+    return {name: round(float(v), 4) for name, v in zip(SCORER_NAMES, normed)}
 
-    n_cross = round(n * 0.6)
-    top = scored[: nm // 3]
-    bot = scored[2 * nm // 3 :]
 
-    for _ in range(n_cross * 40):
-        if len(pairs) >= n_cross:
-            break
-        a, b = rng.choice(top), rng.choice(bot)
-        key  = tuple(sorted([a.match_id, b.match_id]))
-        if key not in seen:
-            seen.add(key)
-            pairs.append((a, b))
+def _blend(
+    prior: dict[str, float],
+    data: dict[str, float],
+    n_ratings: int,
+) -> dict[str, float]:
+    """
+    Bayesian blend: (1 - α) * prior + α * data.
+    α ramps linearly from 0 to 1 over _RAMP_N ratings.
+    """
+    alpha = min(1.0, n_ratings / _RAMP_N)
+    blended = {}
+    for name in SCORER_NAMES:
+        p = prior.get(name, 0.0)
+        d = data.get(name, 0.0)
+        blended[name] = (1 - alpha) * p + alpha * d
 
-    for _ in range((n - n_cross) * 40):
-        if len(pairs) >= n:
-            break
-        i    = rng.randint(0, nm - 2)
-        a, b = scored[i], scored[i + 1]
-        key  = tuple(sorted([a.match_id, b.match_id]))
-        if key not in seen:
-            seen.add(key)
-            pairs.append((a, b))
+    # Re-normalise to sum=1
+    total = sum(blended.values())
+    if total > 0:
+        blended = {k: round(v / total, 4) for k, v in blended.items()}
+    return blended
 
-    rng.shuffle(pairs)
 
-    def _info(m: Match) -> dict:
-        r   = results[m.match_id]
-        from zoneinfo import ZoneInfo
-        tz  = profile.time_windows[0].timezone if profile.time_windows else ZoneInfo("UTC")
-        loc = m.kickoff_utc.astimezone(tz)
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def fit_from_ratings(rated_examples: list[dict]) -> dict:
+    """
+    Learn weights from (raw_score_vector, rating 1–10) examples.
+
+    rated_examples: list of {raw: {scorer_name: float}, rating: int}
+
+    Returns:
+      {weights, weight_delta, top_features, rating_stats, confidence}
+    """
+    n_scorers = len(SCORER_NAMES)
+
+    if not rated_examples:
         return {
-            "match_id":      m.match_id,
-            "home":          m.home,
-            "away":          m.away,
-            "stage":         m.stage.value,
-            "stage_label":   _STAGE_LABELS.get(m.stage.value, m.stage.value),
-            "kickoff_local": loc.strftime("%d/%m %H:%M"),
-            "venue":         m.venue,
-            "raw":           {k: round(v, 4) for k, v in r.raw_by_scorer.items()},
-            "reasons":       r.reason_by_scorer,
+            "weights":      dict(DEFAULT_WEIGHTS),
+            "weight_delta": {n: 0.0 for n in SCORER_NAMES},
+            "top_features": [],
+            "rating_stats": {},
+            "confidence":   0.0,
         }
 
-    out = []
-    for a, b in pairs:
-        if rng.random() < 0.5:
-            a, b = b, a
-        out.append({"match_a": _info(a), "match_b": _info(b)})
-    return out
+    X = np.array(
+        [[ex["raw"].get(s, 0.5) for s in SCORER_NAMES] for ex in rated_examples],
+        dtype=float,
+    )
+    y = np.array(
+        [float(ex["rating"]) for ex in rated_examples],
+        dtype=float,
+    )
 
+    data_weights = _correlation_weights(X, y)
+    weights = _blend(DEFAULT_WEIGHTS, data_weights, len(y))
 
-def fit_weights(preferences: list[dict]) -> dict[str, float]:
-    """
-    Logistic regression on preference diffs (no intercept, L2 regularized).
+    top_features = sorted(
+        [{"scorer": name, "importance": round(float(v), 4)}
+         for name, v in weights.items()],
+        key=lambda x: x["importance"],
+        reverse=True,
+    )
 
-    Each preference: {'raw_a': dict[str,float], 'raw_b': dict[str,float],
-                      'preferred': 'a'|'b'}
+    rating_stats = {
+        "mean": round(float(np.mean(y)), 1),
+        "min":  int(np.min(y)),
+        "max":  int(np.max(y)),
+        "n":    len(y),
+        "dist": {str(i): int((y == i).sum()) for i in range(1, 11) if (y == i).sum() > 0},
+    }
 
-    Returns scorer_name → weight, normalized to sum 1.
-    """
-    if not preferences:
-        u = 1.0 / len(SCORER_NAMES)
-        return {name: u for name in SCORER_NAMES}
+    weight_delta = {
+        name: round(float(weights[name]) - DEFAULT_WEIGHTS.get(name, 0.0), 4)
+        for name in SCORER_NAMES
+    }
 
-    X: list[np.ndarray] = []
-    for pref in preferences:
-        xa   = np.array([pref["raw_a"].get(s, 0.0) for s in SCORER_NAMES])
-        xb   = np.array([pref["raw_b"].get(s, 0.0) for s in SCORER_NAMES])
-        diff = xa - xb
-        if pref["preferred"] == "b":
-            diff = -diff
-        X.append(diff)
+    confidence = round(min(1.0, len(y) / _RAMP_N), 2)
 
-    Xm  = np.array(X, dtype=float)       # (n_prefs, 9)
-    w   = np.zeros(len(SCORER_NAMES))    # init at zero = uniform predictions
-
-    lr  = 0.3
-    lam = 0.05   # L2 — prevents collapse to a single feature
-
-    for _ in range(3000):
-        logits = np.clip(Xm @ w, -10.0, 10.0)
-        probs  = 1.0 / (1.0 + np.exp(-logits))
-        grad   = -(Xm.T @ (1.0 - probs)) / len(Xm) + lam * w
-        w     -= lr * grad
-
-    # Shift to strictly positive then normalize
-    w = w - w.min() + 1e-3
-    w = w / w.sum()
-
-    return {name: round(float(v), 4) for name, v in zip(SCORER_NAMES, w)}
+    return {
+        "weights":      weights,
+        "weight_delta": weight_delta,
+        "top_features": top_features[:6],
+        "rating_stats": rating_stats,
+        "confidence":   confidence,
+    }

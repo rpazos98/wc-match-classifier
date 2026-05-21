@@ -42,9 +42,13 @@ def _load_profile(path: str) -> UserProfile:
             date=None,
         ))
 
+    # Backward compat: migrate old favorite_teams list
+    affinities = data.get("team_affinities")
+    if not affinities and data.get("favorite_teams"):
+        affinities = {t.upper(): 1.0 for t in data["favorite_teams"]}
     return UserProfile(
         name=data.get("name", "Fan"),
-        favorite_teams=data.get("favorite_teams", []),
+        team_affinities={t.upper(): float(v) for t, v in (affinities or {}).items()},
         favorite_players=data.get("favorite_players", []),
         time_windows=windows,
         language=data.get("language", "es"),
@@ -57,7 +61,7 @@ def _interactive_profile() -> UserProfile:
 
     name = input("Tu nombre: ").strip() or "Fan"
 
-    teams_raw = input("Equipos favoritos (códigos separados por coma, ej: ARG,MEX): ").strip()
+    teams_raw = input("Equipos (S-tier favorito, coma separado, ej: ARG,MEX): ").strip()
     teams = [t.strip().upper() for t in teams_raw.split(",") if t.strip()] if teams_raw else []
 
     players_raw = input("Jugadores favoritos (nombres, coma separados, ej: Messi,Lozano): ").strip()
@@ -97,7 +101,7 @@ def _interactive_profile() -> UserProfile:
 
     return UserProfile(
         name=name,
-        favorite_teams=teams,
+        team_affinities={t: 1.0 for t in teams},
         favorite_players=players,
         time_windows=windows,
     )
@@ -129,15 +133,16 @@ def _fmt_match_header(match: Match, profile: UserProfile) -> str:
 
 
 _SCORER_LABELS: dict[str, str] = {
-    "Favorite Team":   "Equipo favorito",
-    "Time Availability": "Disponibilidad",
-    "Match Stage":     "Fase del torneo",
-    "Form":            "Forma reciente",
-    "Favorite Player": "Jugador favorito",
-    "Dark Horse":      "Sorpresa",
-    "Team Strength":   "Calidad",
-    "Rivalry":         "Rivalidad",
-    "Confederation":   "Confederación",
+    "Favorite Team":        "Equipo favorito",
+    "Match Stage":          "Fase del torneo",
+    "Competitive Tension":  "Tensión competitiva",
+    "Favorite Player":      "Jugador favorito",
+    "Chaos Potential":      "Potencial de caos",
+    "Upset Potential":      "Sorpresa",
+    "Narrative":            "Narrativa",
+    "Same Group":           "Mismo grupo",
+    "Form":                 "Forma reciente",
+    "Star Power":           "Estrellas",
 }
 
 
@@ -317,7 +322,7 @@ def run_cli() -> None:
         # Demo profile
         profile = UserProfile(
             name="Fan Demo",
-            favorite_teams=["ARG", "MEX"],
+            team_affinities={"ARG": 1.0, "MEX": 1.0},
             favorite_players=["Messi", "Lozano", "De Paul"],
             time_windows=[
                 TimeWindow(start_hour=14, end_hour=23, weekday=5,

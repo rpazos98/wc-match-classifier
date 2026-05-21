@@ -286,6 +286,16 @@ def player_goals_map() -> dict[str, int]:
     return {r["scorer"]: r["total_goals"] for r in rows}
 
 
+def player_overall_ratings() -> dict[str, int]:
+    """Returns {short_name: overall} for all WC squad players that have a rating."""
+    con = _connect()
+    rows = con.execute(
+        "SELECT short_name, overall FROM players WHERE fifa_code IS NOT NULL AND overall IS NOT NULL"
+    ).fetchall()
+    con.close()
+    return {r["short_name"]: r["overall"] for r in rows}
+
+
 def player_long_names() -> dict[str, str]:
     """Returns {short_name: long_name} from players table."""
     con = _connect()
@@ -327,6 +337,52 @@ def team_attack_scores() -> dict[str, float]:
     return {r["fifa_code"]: r["attack_score"] for r in rows}
 
 
+def group_match_matchdays() -> dict[int, int]:
+    """
+    Returns {match_number: matchday (1|2|3)} for all group stage matches.
+    Matchday is determined by kickoff order within each group (first 2 = MD1, next 2 = MD2, last 2 = MD3).
+    """
+    con = _connect()
+    rows = con.execute("""
+        WITH grp_matches AS (
+            SELECT m.match_number,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY ht.group_letter
+                       ORDER BY m.kickoff_at
+                   ) AS rn
+            FROM matches m
+            JOIN teams ht ON m.home_team_id = ht.id
+            JOIN tournament_stages ts ON m.stage_id = ts.id
+            WHERE ts.stage_name = 'Group Stage'
+              AND ht.group_letter IS NOT NULL
+        )
+        SELECT match_number,
+               CASE WHEN rn <= 2 THEN 1 WHEN rn <= 4 THEN 2 ELSE 3 END AS matchday
+        FROM grp_matches
+    """).fetchall()
+    con.close()
+    return {r["match_number"]: r["matchday"] for r in rows}
+
+
+def team_defense_scores() -> dict[str, float]:
+    """Returns {fifa_code: defense_score 0.0-1.0} based on avg defending of top 11 players."""
+    con = _connect()
+    rows = con.execute("""
+        WITH ranked AS (
+            SELECT fifa_code, defending,
+                   ROW_NUMBER() OVER (PARTITION BY fifa_code ORDER BY overall DESC) AS rn
+            FROM players
+            WHERE fifa_code IS NOT NULL
+        )
+        SELECT fifa_code, AVG(defending) / 99.0 AS defense_score
+        FROM ranked
+        WHERE rn <= 11
+        GROUP BY fifa_code
+    """).fetchall()
+    con.close()
+    return {r["fifa_code"]: r["defense_score"] for r in rows}
+
+
 def team_fifa_ranks() -> dict[str, int]:
     """Returns {fifa_code: fifa_rank} for all teams with a known rank."""
     con = _connect()
@@ -343,6 +399,83 @@ def wc_h2h_meetings() -> dict[frozenset, int]:
     rows = con.execute("SELECT team_a, team_b, matches FROM wc_h2h").fetchall()
     con.close()
     return {frozenset({r["team_a"], r["team_b"]}): r["matches"] for r in rows}
+
+
+def wc_h2h_record(team_a: str, team_b: str) -> dict | None:
+    """Return full WC H2H record between two teams, or None if never met."""
+    con = _connect()
+    row = con.execute(
+        "SELECT team_a, team_b, matches, a_wins, draws, b_wins "
+        "FROM wc_h2h WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)",
+        (team_a, team_b, team_b, team_a),
+    ).fetchone()
+    con.close()
+    if not row or row["matches"] == 0:
+        return None
+    if row["team_a"] == team_a:
+        return {"matches": row["matches"], "a_wins": row["a_wins"],
+                "draws": row["draws"], "b_wins": row["b_wins"]}
+    return {"matches": row["matches"], "a_wins": row["b_wins"],
+            "draws": row["draws"], "b_wins": row["a_wins"]}
+
+
+def all_h2h_record(team_a: str, team_b: str) -> dict | None:
+    """Return full all-competition H2H record, or None if never met."""
+    con = _connect()
+    row = con.execute(
+        "SELECT team_a, team_b, matches, a_wins, draws, b_wins "
+        "FROM all_h2h WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)",
+        (team_a, team_b, team_b, team_a),
+    ).fetchone()
+    con.close()
+    if not row or row["matches"] == 0:
+        return None
+    if row["team_a"] == team_a:
+        return {"matches": row["matches"], "a_wins": row["a_wins"],
+                "draws": row["draws"], "b_wins": row["b_wins"]}
+    return {"matches": row["matches"], "a_wins": row["b_wins"],
+            "draws": row["draws"], "b_wins": row["a_wins"]}
+
+
+def recent_h2h_matches(team_a: str, team_b: str, n: int = 5) -> list[dict]:
+    """Return last N matches between two teams from intl_results CSV."""
+    from classifier.elo import _CODE_TO_CSV, _DATA
+    import csv
+
+    name_a = _CODE_TO_CSV.get(team_a, team_a)
+    name_b = _CODE_TO_CSV.get(team_b, team_b)
+
+    with open(_DATA, encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    matches = []
+    for r in rows:
+        if not ((r["home_team"] == name_a and r["away_team"] == name_b) or
+                (r["home_team"] == name_b and r["away_team"] == name_a)):
+            continue
+        try:
+            hs = int(float(r["home_score"]))
+            as_ = int(float(r["away_score"]))
+        except (ValueError, TypeError):
+            continue
+
+        # Normalize to team_a perspective
+        if r["home_team"] == name_a:
+            matches.append({
+                "date": r["date"],
+                "tournament": r.get("tournament", ""),
+                "a_goals": hs,
+                "b_goals": as_,
+            })
+        else:
+            matches.append({
+                "date": r["date"],
+                "tournament": r.get("tournament", ""),
+                "a_goals": as_,
+                "b_goals": hs,
+            })
+
+    return matches[-n:]
 
 
 def load_teams() -> list[dict]:

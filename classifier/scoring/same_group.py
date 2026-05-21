@@ -12,7 +12,7 @@ def _groups() -> dict[str, str]:
 
 class SameGroupScorer(BaseScorer):
     name   = "Same Group"
-    weight = 0.04
+    weight = 0.03
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         if ctx.match.stage != Stage.GROUP:
@@ -23,7 +23,7 @@ class SameGroupScorer(BaseScorer):
         if home == "TBD" or away == "TBD":
             return 0.0, ""
 
-        favs = {t.upper() for t in ctx.profile.favorite_teams}
+        favs = {t for t, a in ctx.profile.team_affinities.items() if a > 0}
         if not favs:
             return 0.0, ""
 

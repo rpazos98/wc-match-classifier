@@ -75,7 +75,7 @@ class FavoritePlayerScorer(BaseScorer):
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         squads = [s for s in (ctx.match.home_squad, ctx.match.away_squad) if s]
         if not squads:
-            return 0.5, ""  # abstain: squads unknown
+            return 0.0, ""  # abstain: squads unknown
 
         fav_lower = [p.lower() for p in ctx.profile.favorite_players]
 

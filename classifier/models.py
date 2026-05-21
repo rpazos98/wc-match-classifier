@@ -26,8 +26,8 @@ class TimeWindow:
 @dataclass(slots=True)
 class UserProfile:
     name:             str
-    favorite_teams:   list[str]      # ISO team codes e.g. ["ARG", "MEX"]
-    favorite_players: list[str]      # player names
+    team_affinities:  dict[str, float]  # ISO code → 0.0–1.0 (S=1.0, A=0.65, B=0.3)
+    favorite_players: list[str]          # player names
     time_windows:     list[TimeWindow]
     language:         str = "es"
     region:           str = "MX"
@@ -59,4 +59,6 @@ class ScoringResult:
     reasons:           list[str]          # flat list (kept for compat)
     reason_by_scorer:  dict[str, str]     # scorer_name -> reason string
     raw_by_scorer:     dict[str, float]   # scorer_name -> raw 0.0–1.0
+    weight_by_scorer:  dict[str, float]   # scorer_name -> weight used
+    prediction:        dict | None = None # {p_home, p_draw, p_away, elo_home, elo_away, entropy}
     label:             str = ""           # set after classification
