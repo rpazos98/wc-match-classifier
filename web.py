@@ -394,27 +394,9 @@ def get_weights():
 # ── Preference learning ────────────────────────────────────────────────────────
 
 @app.get("/api/learn/pairs")
-def get_pairs(n: int = 12, seed: int | None = None, historical: bool = True):
-    import random
-    from classifier.learning import sample_pairs
+def get_pairs(n: int = 12, seed: int | None = None):
     from classifier.historical import sample_historical_pairs
-
-    all_matches = load_all_matches()
-    confirmed   = [m for m in all_matches if m.home != "TBD" and m.away != "TBD"]
-
-    if historical:
-        # 50% current 2026 pairs, 50% historical — historical ones carry stronger signal
-        # since the user actually experienced those matches
-        n_hist    = n // 2
-        n_current = n - n_hist
-        hist_pairs    = sample_historical_pairs(_profile, n=n_hist, seed=seed)
-        current_pairs = sample_pairs(confirmed, _profile, n=n_current, seed=seed)
-        rng   = random.Random(seed)
-        pairs = hist_pairs + current_pairs
-        rng.shuffle(pairs)
-    else:
-        pairs = sample_pairs(confirmed, _profile, n=n, seed=seed)
-
+    pairs = sample_historical_pairs(_profile, n=n, seed=seed)
     return {"pairs": pairs, "total": len(pairs)}
 
 

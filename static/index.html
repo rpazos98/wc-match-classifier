@@ -1299,49 +1299,57 @@ const S = {
 // ── Debug panel ────────────────────────────────────────────────────────────────
 const SCORER_ORDER = [
   'Favorite Team','Time Availability','Match Stage',
-  'Form','Favorite Player','Dark Horse',
-  'Same Group','Team Strength','Rivalry','Confederation',
+  'Form','Favorite Player','Match Drama','Goal Fest',
+  'Dark Horse','Upset Potential','Same Group','Narrative Weight',
+  'Team Strength','Rivalry','Confederation',
 ];
 
 const PRESET_EQUIPO = {
   'Favorite Team': 28, 'Time Availability': 21, 'Match Stage': 12,
-  'Form': 11, 'Favorite Player': 8, 'Dark Horse': 7,
-  'Same Group': 6, 'Team Strength': 4, 'Rivalry': 2, 'Confederation': 1,
+  'Form': 11, 'Favorite Player': 8, 'Match Drama': 5, 'Goal Fest': 3,
+  'Dark Horse': 4, 'Upset Potential': 2, 'Same Group': 6,
+  'Narrative Weight': 4, 'Team Strength': 4, 'Rivalry': 2, 'Confederation': 1,
 };
 const PRESET_FUTBOL = {
-  'Favorite Team': 4,  'Time Availability': 9,  'Match Stage': 26,
-  'Form': 21, 'Favorite Player': 4, 'Dark Horse': 13,
-  'Same Group': 2, 'Team Strength': 10, 'Rivalry': 7, 'Confederation': 1,
+  'Favorite Team': 4,  'Time Availability': 9,  'Match Stage': 22,
+  'Form': 18, 'Favorite Player': 4, 'Match Drama': 12, 'Goal Fest': 10,
+  'Dark Horse': 8, 'Upset Potential': 5, 'Same Group': 2,
+  'Narrative Weight': 6, 'Team Strength': 8, 'Rivalry': 5, 'Confederation': 1,
 };
 // Solo me importa cuando puedo ver — el casual con horario fijo
 const PRESET_CASUAL = {
   'Favorite Team': 4,  'Time Availability': 55, 'Match Stage': 18,
-  'Form': 8,  'Favorite Player': 3, 'Dark Horse': 4,
-  'Same Group': 2, 'Team Strength': 3, 'Rivalry': 2, 'Confederation': 1,
+  'Form': 8,  'Favorite Player': 3, 'Match Drama': 4, 'Goal Fest': 5,
+  'Dark Horse': 2, 'Upset Potential': 2, 'Same Group': 2,
+  'Narrative Weight': 2, 'Team Strength': 3, 'Rivalry': 2, 'Confederation': 1,
 };
 // Sigo a mi ídolo donde juegue
 const PRESET_IDOLO = {
   'Favorite Team': 16, 'Time Availability': 7,  'Match Stage': 9,
-  'Form': 6,  'Favorite Player': 45, 'Dark Horse': 4,
-  'Same Group': 6, 'Team Strength': 3, 'Rivalry': 3, 'Confederation': 1,
+  'Form': 6,  'Favorite Player': 45, 'Match Drama': 3, 'Goal Fest': 4,
+  'Dark Horse': 3, 'Upset Potential': 2, 'Same Group': 6,
+  'Narrative Weight': 2, 'Team Strength': 3, 'Rivalry': 3, 'Confederation': 1,
 };
 // Quiero ver sorpresas y clásicos — el drama
 const PRESET_DRAMA = {
-  'Favorite Team': 3,  'Time Availability': 4,  'Match Stage': 11,
-  'Form': 9, 'Favorite Player': 3, 'Dark Horse': 35,
-  'Same Group': 2, 'Team Strength': 7, 'Rivalry': 22, 'Confederation': 1,
+  'Favorite Team': 3,  'Time Availability': 4,  'Match Stage': 10,
+  'Form': 6, 'Favorite Player': 3, 'Match Drama': 20, 'Goal Fest': 8,
+  'Dark Horse': 20, 'Upset Potential': 15, 'Same Group': 2,
+  'Narrative Weight': 10, 'Team Strength': 5, 'Rivalry': 12, 'Confederation': 1,
 };
 // Solo los mejores equipos jugando bien
 const PRESET_ELITE = {
   'Favorite Team': 7,  'Time Availability': 4,  'Match Stage': 14,
-  'Form': 29, 'Favorite Player': 4, 'Dark Horse': 2,
-  'Same Group': 3, 'Team Strength': 30, 'Rivalry': 4, 'Confederation': 1,
+  'Form': 25, 'Favorite Player': 4, 'Match Drama': 8, 'Goal Fest': 12,
+  'Dark Horse': 1, 'Upset Potential': 1, 'Same Group': 3,
+  'Narrative Weight': 5, 'Team Strength': 28, 'Rivalry': 4, 'Confederation': 1,
 };
 // Igual peso para todos — el equitativo
 const PRESET_EQUAL = {
-  'Favorite Team': 10, 'Time Availability': 10, 'Match Stage': 10,
-  'Form': 10, 'Favorite Player': 10, 'Dark Horse': 10,
-  'Same Group': 10, 'Team Strength': 10, 'Rivalry': 10, 'Confederation': 10,
+  'Favorite Team': 7, 'Time Availability': 7, 'Match Stage': 7,
+  'Form': 7, 'Favorite Player': 7, 'Match Drama': 7, 'Goal Fest': 7,
+  'Dark Horse': 7, 'Upset Potential': 7, 'Same Group': 7,
+  'Narrative Weight': 7, 'Team Strength': 7, 'Rivalry': 7, 'Confederation': 7,
 };
 
 const PRESETS = {
@@ -1376,7 +1384,9 @@ function buildDebugWeightsUI() {
   const labels = {
     'Favorite Team':'Equipo fav.','Time Availability':'Disponibil.',
     'Match Stage':'Fase','Form':'Forma','Favorite Player':'Jugador fav.',
-    'Dark Horse':'Sorpresa','Same Group':'Mismo grupo',
+    'Match Drama':'Drama','Goal Fest':'Goles',
+    'Dark Horse':'Sorpresa','Upset Potential':'David/Goliat',
+    'Same Group':'Mismo grupo','Narrative Weight':'Historia',
     'Team Strength':'Calidad','Rivalry':'Rivalidad','Confederation':'Confederac.',
   };
   let h = '';
@@ -2207,7 +2217,8 @@ const LS = {
 
 const REASON_SCORERS = [
   'Favorite Team', 'Same Group', 'Time Availability', 'Favorite Player',
-  'Match Stage', 'Form', 'Dark Horse', 'Rivalry',
+  'Match Stage', 'Form', 'Match Drama', 'Goal Fest',
+  'Dark Horse', 'Upset Potential', 'Narrative Weight', 'Rivalry',
 ];
 
 function _learnReasons(match) {
