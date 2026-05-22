@@ -294,6 +294,33 @@ body {
   color: var(--text-sm);
 }
 
+/* ── Match filter bar ── */
+.match-filter-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surf);
+}
+.filter-btn {
+  padding: 4px 14px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: var(--surf2);
+  color: var(--text-sm);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  transition: all 0.15s;
+}
+.filter-btn:hover { color: var(--text); border-color: var(--green); }
+.filter-btn.active {
+  background: rgba(94,214,74,0.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+
 /* ── Match list ── */
 .match-list-container {
   flex: 1;
@@ -1746,6 +1773,11 @@ input[type="checkbox"] { accent-color: var(--green); cursor: pointer; width: 16p
 
     <!-- Tab: Matches (unified) -->
     <div id="tab-matches" class="match-list-container">
+      <div id="match-filter-bar" class="match-filter-bar hidden">
+        <button class="filter-btn active" data-filter="all" onclick="setMatchFilter('all')">Todos</button>
+        <button class="filter-btn" data-filter="confirmed" onclick="setMatchFilter('confirmed')">Confirmados</button>
+        <button class="filter-btn" data-filter="simulated" onclick="setMatchFilter('simulated')">Simulados</button>
+      </div>
       <div id="match-list-status" class="match-list-status"></div>
       <div id="match-list"><div style="padding:24px;color:var(--muted);font-size:12px">Cargando partidos…</div></div>
     </div>
@@ -1961,6 +1993,7 @@ const S = {
   hasLearned: false,
   seed: null,
   profile: null,
+  matchFilter: 'all',   // 'all' | 'confirmed' | 'simulated'
   allTeams: [],
   allPlayers: {},
   modalTierMap: {},   // code → "S"|"A"|"B"
@@ -2169,6 +2202,26 @@ function updatePipeline() {
   } else {
     steps[2].querySelector('.pipe-label').textContent = 'Simular';
   }
+}
+
+// ── Match filter ──────────────────────────────────────────────────────────────
+function setMatchFilter(mode) {
+  S.matchFilter = mode;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === mode);
+  });
+  _rerenderFilteredList();
+}
+
+function _rerenderFilteredList() {
+  let filtered = S.matches;
+  if (S.matchFilter === 'confirmed') {
+    filtered = S.matches.filter(m => m.stage === 'group' || !S.simulated);
+  } else if (S.matchFilter === 'simulated') {
+    filtered = S.matches.filter(m => m.stage !== 'group' && S.simulated);
+  }
+  renderList(filtered, 'match-list');
+  document.getElementById('match-count').textContent = filtered.length;
 }
 
 // ── Render match list ──────────────────────────────────────────────────────────
@@ -2831,6 +2884,12 @@ async function doSimulate() {
     // Unified match list: all matches (group + knockout) in one list
     S.matches = data.matches;
     for (const m of data.matches) S.matchById[m.match_id] = m;
+
+    // Show filter bar now that we have simulated matches
+    document.getElementById('match-filter-bar').classList.remove('hidden');
+    S.matchFilter = 'all';
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === 'all'));
+
     renderList(data.matches, 'match-list');
     document.getElementById('match-count').textContent = data.matches.length;
     renderStatus();
