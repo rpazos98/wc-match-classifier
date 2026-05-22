@@ -377,6 +377,24 @@ def run_monte_carlo(
     # Most likely champion
     modal_champion = max(champion_counts, key=champion_counts.__getitem__)
 
+    # Step 1: filter runs where the modal champion wins
+    champion_runs = [
+        (s, kw) for s, kw in run_ko_winners
+        if kw.get(104) == modal_champion
+    ]
+    if not champion_runs:
+        champion_runs = run_ko_winners  # fallback
+
+    # Step 2: compute modal winners WITHIN champion runs only
+    # This ensures the representative path is coherent with the champion winning
+    champ_modal: dict[int, str] = {}
+    champ_match_counts: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for _, kw in champion_runs:
+        for mn, winner in kw.items():
+            champ_match_counts[mn][winner] += 1
+    for mn, counts in champ_match_counts.items():
+        champ_modal[mn] = max(counts, key=counts.__getitem__)
+
     # KO matches weighted by importance: later rounds count more
     _weights: dict[int, float] = {}
     for mn in range(73, 89):  _weights[mn] = 1.0   # R32
@@ -384,25 +402,17 @@ def run_monte_carlo(
     for mn in range(97, 101): _weights[mn] = 2.0   # QF
     for mn in (101, 102):     _weights[mn] = 3.0   # SF
     _weights[103] = 1.5                             # 3rd place
-    _weights[104] = 5.0                             # Final (highest weight)
+    _weights[104] = 5.0                             # Final
 
     def _score(ko_winners: dict[int, str]) -> float:
         return sum(
             _weights.get(mn, 1.0)
             for mn, winner in ko_winners.items()
-            if modal.get(mn) == winner
+            if champ_modal.get(mn) == winner
         )
 
-    # Step 1: filter runs where the modal champion actually wins
-    champion_runs = [
-        (s, kw) for s, kw in run_ko_winners
-        if kw.get(104) == modal_champion
-    ]
-    # Fallback to all runs if no champion runs (shouldn't happen)
-    candidate_runs = champion_runs if champion_runs else run_ko_winners
-
-    # Step 2: among those, pick the run most aligned with modal winners
-    best_seed = max(candidate_runs, key=lambda x: _score(x[1]))[0]
+    # Step 3: pick the champion run most aligned with champion-path modals
+    best_seed = max(champion_runs, key=lambda x: _score(x[1]))[0]
     representative = simulate_bracket(matches, seed=best_seed)
 
     return MonteCarloResult(
