@@ -9,8 +9,9 @@ import DetailPanel from './components/detail/DetailPanel';
 import BracketView from './components/bracket/BracketView';
 import LearnModal from './components/learn/LearnModal';
 import ProfileWizard from './components/profile/ProfileWizard';
-import { getMatches, simulate } from './api/matches';
-import { getProfile } from './api/profile';
+import { useMatches } from './hooks/useMatches';
+import { useProfile } from './hooks/useProfile';
+import { simulate } from './api/matches';
 
 function AppInner() {
   const { activeTab } = useAppState();
@@ -20,36 +21,36 @@ function AppInner() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [learnOpen, setLearnOpen] = useState(false);
 
+  // SWR: auto-fetch + cache matches and profile
+  const { matchData, error: matchError, refresh: refreshMatches } = useMatches();
+  const { profile, error: profileError } = useProfile();
+
+  // Sync SWR data → app state
   useEffect(() => {
-    async function loadInitialData() {
-      try {
-        const [matchData, profile] = await Promise.all([
-          getMatches(),
-          getProfile(),
-        ]);
-
-        dispatch({
-          type: 'SET_MATCHES',
-          matches: matchData.matches,
-          weights: matchData.weights,
-          defaultWeights: matchData.default_weights,
-          hasLearned: matchData.has_learned,
-        });
-
-        dispatch({ type: 'SET_PROFILE', profile });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        toast('\u26A0 Error al cargar: ' + msg);
-      }
+    if (matchData) {
+      dispatch({
+        type: 'SET_MATCHES',
+        matches: matchData.matches,
+        weights: matchData.weights,
+        defaultWeights: matchData.default_weights,
+        hasLearned: matchData.has_learned,
+      });
     }
+  }, [matchData, dispatch]);
 
-    loadInitialData();
+  useEffect(() => {
+    if (profile) {
+      dispatch({ type: 'SET_PROFILE', profile });
+    }
+  }, [profile, dispatch]);
+
+  useEffect(() => {
+    if (matchError || profileError) {
+      const msg = (matchError || profileError)?.message ?? 'Error desconocido';
+      toast('\u26A0 Error al cargar: ' + msg);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleOpenProfile = useCallback(() => {
-    setProfileOpen(true);
-  }, []);
+  }, [matchError, profileError]);
 
   const handleSimulate = useCallback(async () => {
     try {
@@ -78,19 +79,27 @@ function AppInner() {
     }
   }, [dispatch, toast]);
 
-  const handleOpenLearn = useCallback(() => {
-    setLearnOpen(true);
-  }, []);
+  const handleLearnClose = useCallback(() => {
+    setLearnOpen(false);
+    // Refresh matches after learning (weights may have changed)
+    refreshMatches();
+  }, [refreshMatches]);
+
+  const handleProfileClose = useCallback(() => {
+    setProfileOpen(false);
+    // Refresh matches after profile change (scores recalculated)
+    refreshMatches();
+  }, [refreshMatches]);
 
   return (
     <>
       <Header
-        onOpenProfile={handleOpenProfile}
+        onOpenProfile={() => setProfileOpen(true)}
         onSimulate={handleSimulate}
-        onOpenLearn={handleOpenLearn}
+        onOpenLearn={() => setLearnOpen(true)}
       />
       <div id="layout">
-        <Sidebar onOpenProfile={handleOpenProfile} />
+        <Sidebar onOpenProfile={() => setProfileOpen(true)} />
         <div id="main">
           <TabBar />
           {activeTab === 'matches' && (
@@ -109,11 +118,11 @@ function AppInner() {
 
       <ProfileWizard
         isOpen={profileOpen}
-        onClose={() => setProfileOpen(false)}
+        onClose={handleProfileClose}
       />
       <LearnModal
         isOpen={learnOpen}
-        onClose={() => setLearnOpen(false)}
+        onClose={handleLearnClose}
       />
     </>
   );

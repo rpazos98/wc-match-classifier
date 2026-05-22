@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { LearnMatch, FitRatingsResponse, RatedMatch } from '../../types';
 import { getLearnMatches, fitRatings, resetRatings, getLearnState } from '../../api/learn';
-import { getMatches } from '../../api/matches';
-import { useAppDispatch } from '../../state/AppContext';
+import { mutate } from 'swr';
 import WCYearSelector from './WCYearSelector';
 import LearnMatchCard from './LearnMatchCard';
 import RatingButtons from './RatingButtons';
@@ -27,8 +26,6 @@ interface Props {
 }
 
 export default function LearnModal({ isOpen, onClose }: Props) {
-  const dispatch = useAppDispatch();
-
   // ── Internal state ──────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('loading');
   const [matches, setMatches] = useState<LearnMatch[]>([]);
@@ -183,26 +180,15 @@ export default function LearnModal({ isOpen, onClose }: Props) {
       const result = await fitRatings(ratings);
       setFitResult(result);
 
-      // Refresh matches in app state
-      try {
-        const md = await getMatches();
-        dispatch({
-          type: 'SET_MATCHES',
-          matches: md.matches,
-          weights: md.weights,
-          defaultWeights: md.default_weights,
-          hasLearned: md.has_learned,
-        });
-      } catch {
-        // non-critical
-      }
+      // Invalidate SWR cache so App re-fetches with new weights
+      mutate('/api/matches');
 
       setPhase('summary');
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : 'Error al entrenar');
       setPhase('error');
     }
-  }, [ratings, dispatch]);
+  }, [ratings]);
 
   // ── Continue with more matches ────────────────────────────────────────
   const handleContinue = useCallback(() => {
@@ -216,37 +202,18 @@ export default function LearnModal({ isOpen, onClose }: Props) {
       await resetRatings();
       localStorage.removeItem('wc2026_remembered_wcs');
       wcYears.current = null;
+      mutate('/api/matches');
       onClose();
-
-      const data = await getMatches();
-      dispatch({
-        type: 'SET_MATCHES',
-        matches: data.matches,
-        weights: data.weights,
-        defaultWeights: data.default_weights,
-        hasLearned: data.has_learned,
-      });
-    } catch (e) {
-      // best effort
-    }
-  }, [dispatch, onClose]);
-
-  // ── Apply and close ───────────────────────────────────────────────────
-  const handleApply = useCallback(async () => {
-    onClose();
-    try {
-      const data = await getMatches();
-      dispatch({
-        type: 'SET_MATCHES',
-        matches: data.matches,
-        weights: data.weights,
-        defaultWeights: data.default_weights,
-        hasLearned: data.has_learned,
-      });
     } catch {
       // best effort
     }
-  }, [dispatch, onClose]);
+  }, [onClose]);
+
+  // ── Apply and close ───────────────────────────────────────────────────
+  const handleApply = useCallback(() => {
+    mutate('/api/matches');
+    onClose();
+  }, [onClose]);
 
   // ── Continue from already-trained state ───────────────────────────────
   const handleContinueFromTrained = useCallback(() => {
