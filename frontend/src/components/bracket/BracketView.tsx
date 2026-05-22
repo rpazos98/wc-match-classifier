@@ -4,7 +4,7 @@ import GroupStandings from './GroupStandings';
 import KOBracket from './KOBracket';
 
 export default function BracketView() {
-  const { bracketData } = useAppState();
+  const { bracketData, matches } = useAppState();
 
   if (!bracketData) {
     return (
@@ -44,7 +44,7 @@ export default function BracketView() {
         <ChampionOdds odds={champion_odds} nSims={n_sims} />
       )}
 
-      {standings.length > 0 && <GroupStandings standings={standings} />}
+      {standings.length > 0 && <GroupStandings standings={standings} matches={matches} />}
 
       {bracket_rounds.length > 0 && (
         <KOBracket

@@ -58,6 +58,11 @@ function AppInner() {
     try {
       toast('Simulando torneo...');
       const data = await simulate();
+      // Find actual winners from the representative bracket
+      const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
+      const finalMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 104);
+      const thirdMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 103);
+
       dispatch({
         type: 'SET_BRACKET',
         bracketData: {
@@ -65,9 +70,9 @@ function AppInner() {
           standings: data.standings,
           champion_odds: data.champion_odds,
           n_sims: data.n_sims,
-          champion: data.champion_odds?.[0]?.team ?? null,
-          runner_up: null,
-          third_place: null,
+          champion: finalMatch?.winner ?? null,
+          runner_up: finalMatch?.loser ?? null,
+          third_place: thirdMatch?.winner ?? null,
         },
         seed: data.seed,
         matches: data.matches,
