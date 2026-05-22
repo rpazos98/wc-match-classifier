@@ -498,3 +498,61 @@ def load_teams() -> list[dict]:
     """).fetchall()
     con.close()
     return [dict(r) for r in rows]
+
+
+# ── Historical star power ────────────────────────────────────────────────────
+
+def team_era_star_power() -> dict[tuple[str, int], float]:
+    """Returns {(fifa_code, wc_year): top_star_tier} from team_era_stars."""
+    con = _connect()
+    try:
+        rows = con.execute(
+            "SELECT fifa_code, wc_year, top_star_tier FROM team_era_stars"
+        ).fetchall()
+    except Exception:
+        con.close()
+        return {}
+    con.close()
+    return {(r["fifa_code"], r["wc_year"]): r["top_star_tier"] for r in rows}
+
+
+def historical_star_lookup() -> dict[str, float]:
+    """
+    Returns {normalized_name: star_tier} for fuzzy player matching.
+    Includes both primary and alt name variants.
+    """
+    import unicodedata
+
+    def _norm(name: str) -> str:
+        n = unicodedata.normalize("NFD", name)
+        n = "".join(c for c in n if unicodedata.category(c) != "Mn")
+        return n.lower().strip()
+
+    con = _connect()
+    try:
+        rows = con.execute(
+            "SELECT player_name, player_name_alt, star_tier FROM historical_stars"
+        ).fetchall()
+    except Exception:
+        con.close()
+        return {}
+    con.close()
+
+    result: dict[str, float] = {}
+    for r in rows:
+        tier = r["star_tier"]
+        for name in (r["player_name"], r["player_name_alt"]):
+            if not name:
+                continue
+            norm = _norm(name)
+            # Keep highest tier if name collision
+            if norm not in result or tier > result[norm]:
+                result[norm] = tier
+            # Also index "First X" variants for matching
+            parts = name.split()
+            if len(parts) >= 2:
+                for i in range(1, len(parts)):
+                    variant = _norm(f"{parts[0]} {parts[i]}")
+                    if variant not in result or tier > result[variant]:
+                        result[variant] = tier
+    return result

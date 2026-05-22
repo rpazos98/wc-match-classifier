@@ -18,6 +18,8 @@ CSV_PATH     = Path(__file__).parent.parent / "data" / "FC26_20250921.csv"
 INTL_RESULTS  = Path(__file__).parent.parent / "data" / "intl_results" / "results.csv"
 INTL_SCORERS  = Path(__file__).parent.parent / "data" / "intl_results" / "goalscorers.csv"
 WC_MATCHES   = Path(__file__).parent.parent / "data" / "wc_history" / "matches_1930_2022.csv"
+TM_PROFILES  = Path(__file__).parent.parent / "data" / "player_profiles.csv"
+TM_NATIONAL  = Path(__file__).parent.parent / "data" / "player_national_performances.csv"
 
 # ── FC26 nationality name → FIFA code mapping ─────────────────────────────────
 # Covers all WC 2026 teams that have players in the FC26 CSV by nationality.
@@ -149,6 +151,11 @@ def build(db_path: Path = DB_PATH, csv_path: Path = CSV_PATH) -> None:
         _ingest_wc_drama(con, WC_MATCHES)
     else:
         print("  wc_history/matches_1930_2022.csv not found — skipping")
+
+    if TM_PROFILES.exists() and TM_NATIONAL.exists():
+        _ingest_historical_stars(con, TM_PROFILES, TM_NATIONAL)
+    else:
+        print("  transfermarkt CSVs not found — skipping historical stars")
 
     _resolve_placeholders(con)
 
@@ -665,6 +672,180 @@ def _ingest_intl_results(
     )
     print(f"  player_intl_goals: {len(goal_tally)} scorer records")
 
+
+
+# ── Transfermarkt citizenship → FIFA code ─────────────────────────────────────
+_TM_TO_CODE: dict[str, str] = {
+    "Argentina": "ARG", "Brazil": "BRA", "France": "FRA", "Germany": "GER",
+    "Spain": "ESP", "England": "ENG", "Portugal": "POR", "Netherlands": "NED",
+    "Uruguay": "URU", "Colombia": "COL", "Morocco": "MAR", "United States": "USA",
+    "Croatia": "CRO", "Switzerland": "SUI", "Belgium": "BEL", "Japan": "JPN",
+    "Korea, South": "KOR", "Australia": "AUS", "Canada": "CAN", "Ecuador": "ECU",
+    "Senegal": "SEN", "Ghana": "GHA", "Nigeria": "NGA", "Cameroon": "CMR",
+    "Egypt": "EGY", "Mexico": "MEX", "Poland": "POL", "Denmark": "DEN",
+    "Serbia": "SRB", "Sweden": "SWE", "Italy": "ITA", "Iran": "IRN",
+    "Saudi Arabia": "KSA", "Tunisia": "TUN", "Scotland": "SCO", "Norway": "NOR",
+    "Austria": "AUT", "Turkey": "TUR", "Czech Republic": "CZE", "Paraguay": "PAR",
+    "South Africa": "RSA", "Algeria": "ALG", "Hungary": "HUN", "Russia": "RUS",
+    "Peru": "PER", "Chile": "CHI", "Romania": "ROU", "Bulgaria": "BUL",
+    "DR Congo": "COD", "Ivory Coast": "CIV", "New Zealand": "NZL",
+    "Bosnia-Herzegovina": "BIH", "Ireland": "IRL", "Northern Ireland": "NIR",
+    "Wales": "WAL", "Panama": "PAN", "Costa Rica": "CRC", "Jamaica": "JAM",
+    "Honduras": "HON", "Greece": "GRE", "Ukraine": "UKR", "Slovakia": "SVK",
+    "Slovenia": "SVN", "Qatar": "QAT", "Jordan": "JOR", "Uzbekistan": "UZB",
+    "Iraq": "IRQ", "Haiti": "HAI", "Curacao": "CUR", "Cabo Verde": "CPV",
+    "Togo": "TOG", "Trinidad and Tobago": "TRI", "Angola": "ANG",
+    "Czechoslovakia": "TCH", "Soviet Union": "URS", "Yugoslavia": "YUG",
+    "Cuba": "CUB", "El Salvador": "SLV", "Israel": "ISR", "Kuwait": "KUW",
+    "United Arab Emirates": "UAE", "China": "CHN", "North Korea": "PRK",
+    "Bolivia": "BOL", "Indonesia": "IDN",
+}
+
+
+def _star_tier(matches: int, goals: int, position: str) -> float:
+    """Compute 0.0-1.0 star tier from caps + goals, adjusted by position."""
+    if "Goalkeeper" in position or "Defender" in position:
+        return min(1.0, matches / 100.0)
+    return min(1.0, goals / 30.0) * 0.6 + min(1.0, matches / 100.0) * 0.4
+
+
+def _ingest_historical_stars(
+    con: sqlite3.Connection,
+    profiles_csv: Path,
+    national_csv: Path,
+) -> None:
+    """
+    Build historical_stars table from transfermarkt data.
+    Stores player-level star tiers with name variants for fuzzy matching.
+    Also builds team_era_stars for team-level star power by era.
+    """
+    import unicodedata
+
+    def _normalize(name: str) -> str:
+        n = unicodedata.normalize("NFD", name)
+        n = "".join(c for c in n if unicodedata.category(c) != "Mn")
+        return n.lower().strip()
+
+    # ── Load profiles ────────────────────────────────────────────────────
+    profiles: dict[str, dict] = {}
+    with open(profiles_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            profiles[r["player_id"]] = {
+                "name": r["player_name"].split("(")[0].strip(),
+                "home_name": r.get("name_in_home_country", "").strip(),
+                "citizenship": r.get("citizenship", "").split("  ")[0].strip(),
+                "position": r.get("main_position", "") or "",
+                "dob": r.get("date_of_birth", ""),
+            }
+
+    # ── historical_stars: per-player ─────────────────────────────────────
+    con.execute("DROP TABLE IF EXISTS historical_stars")
+    con.execute("""
+        CREATE TABLE historical_stars (
+            player_name     TEXT NOT NULL,
+            player_name_alt TEXT,
+            player_name_norm TEXT NOT NULL,
+            fifa_code       TEXT,
+            matches         INTEGER,
+            goals           INTEGER,
+            star_tier       REAL,
+            debut_year      INTEGER,
+            position        TEXT
+        )
+    """)
+
+    # ── team_era_stars: team-level star power per WC year ────────────────
+    con.execute("DROP TABLE IF EXISTS team_era_stars")
+    con.execute("""
+        CREATE TABLE team_era_stars (
+            fifa_code       TEXT NOT NULL,
+            wc_year         INTEGER NOT NULL,
+            top_star_tier   REAL DEFAULT 0.0,
+            avg_star_tier   REAL DEFAULT 0.0,
+            n_stars         INTEGER DEFAULT 0,
+            PRIMARY KEY (fifa_code, wc_year)
+        )
+    """)
+
+    player_rows = []
+    # {fifa_code: [(debut_year, end_estimate, star_tier), ...]}
+    team_timelines: dict[str, list] = defaultdict(list)
+
+    with open(national_csv, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            pid = r["player_id"]
+            prof = profiles.get(pid)
+            if not prof:
+                continue
+
+            matches = int(r["matches"] or 0)
+            goals = int(r["goals"] or 0)
+            if matches < 5:
+                continue
+
+            code = _TM_TO_CODE.get(prof["citizenship"])
+            tier = round(_star_tier(matches, goals, prof["position"]), 4)
+            if tier < 0.2:
+                continue
+
+            name = prof["name"]
+            alt = prof["home_name"] or None
+            norm = _normalize(name)
+
+            debut_year = None
+            debut_str = r.get("debut", "")
+            if debut_str and len(debut_str) >= 4:
+                try:
+                    debut_year = int(debut_str[:4])
+                except ValueError:
+                    pass
+
+            # Estimate career span from DOB if no debut
+            if not debut_year and prof["dob"]:
+                try:
+                    birth_year = int(prof["dob"][:4])
+                    debut_year = birth_year + 20  # rough estimate
+                except ValueError:
+                    pass
+
+            player_rows.append((
+                name, alt, norm, code, matches, goals, tier, debut_year,
+                prof["position"],
+            ))
+
+            if code and debut_year:
+                # Assume ~15 year international career
+                team_timelines[code].append((debut_year, debut_year + 15, tier))
+
+    con.executemany(
+        "INSERT INTO historical_stars VALUES (?,?,?,?,?,?,?,?,?)",
+        player_rows,
+    )
+    con.execute("CREATE INDEX IF NOT EXISTS idx_stars_norm ON historical_stars(player_name_norm)")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_stars_code ON historical_stars(fifa_code)")
+
+    # ── Build team_era_stars for each WC year ────────────────────────────
+    wc_years = list(range(1930, 2023, 4))
+    era_rows = []
+    for code, timeline in team_timelines.items():
+        for wc_year in wc_years:
+            # Players active during this WC (debut <= wc_year <= debut + 15)
+            active = [tier for debut, end, tier in timeline
+                      if debut <= wc_year <= end]
+            if not active:
+                continue
+            active.sort(reverse=True)
+            top = active[0]
+            avg = sum(active[:5]) / min(5, len(active))  # top-5 average
+            era_rows.append((code, wc_year, round(top, 4), round(avg, 4), len(active)))
+
+    con.executemany(
+        "INSERT INTO team_era_stars VALUES (?,?,?,?,?)",
+        era_rows,
+    )
+
+    print(f"  historical_stars: {len(player_rows)} players")
+    print(f"  team_era_stars: {len(era_rows)} team-year entries")
 
 
 # ── WC historical match drama ─────────────────────────────────────────────────

@@ -180,37 +180,46 @@ def _is_rival(code: str, favs: set[str]) -> bool:
 
 
 @lru_cache(maxsize=1)
-def _star_power_by_team() -> dict[str, float]:
-    """
-    Returns {fifa_code: best_star_tier 0.0–1.0} from FC26 overall ratings.
-    Tier = (overall - 87) / 4 for overall >= 88.  Used as historical proxy.
-    """
+def _team_era_stars() -> dict[tuple[str, int], float]:
+    """Returns {(fifa_code, wc_year): top_star_tier} from transfermarkt data."""
     try:
-        from db.query import player_overall_ratings, _connect
-        ratings = player_overall_ratings()
-        con = _connect()
-        rows = con.execute(
-            "SELECT fifa_code, short_name FROM players WHERE fifa_code IS NOT NULL"
-        ).fetchall()
-        con.close()
+        from db.query import team_era_star_power
+        return team_era_star_power()
     except Exception:
         return {}
 
-    best: dict[str, float] = {}
-    for r in rows:
-        overall = ratings.get(r["short_name"])
-        if overall is not None and overall >= 88:
-            tier = (overall - 87) / 4.0
-            code = r["fifa_code"]
-            if tier > best.get(code, 0.0):
-                best[code] = tier
-    return best
+
+@lru_cache(maxsize=1)
+def _star_name_lookup() -> dict[str, float]:
+    """Returns {normalized_name: star_tier} for individual player matching."""
+    try:
+        from db.query import historical_star_lookup
+        return historical_star_lookup()
+    except Exception:
+        return {}
 
 
-def _star_power_raw(home_code: str | None, away_code: str | None) -> float:
-    stars = _star_power_by_team()
-    s_home = stars.get(home_code, 0.0) if home_code else 0.0
-    s_away = stars.get(away_code, 0.0) if away_code else 0.0
+def _star_power_raw(
+    home_code: str | None,
+    away_code: str | None,
+    wc_year: int | None = None,
+) -> float:
+    """
+    Star power for a historical match using transfermarkt national team data.
+    Uses team-era lookup (best star tier per team at given WC year).
+    Falls back to FC26 ratings for 2026 matches.
+    """
+    era_stars = _team_era_stars()
+
+    # Snap to nearest WC year
+    if wc_year and wc_year >= 1930:
+        yr = wc_year
+    else:
+        yr = 2022  # fallback
+
+    s_home = era_stars.get((home_code, yr), 0.0) if home_code else 0.0
+    s_away = era_stars.get((away_code, yr), 0.0) if away_code else 0.0
+
     if s_home == 0.0 and s_away == 0.0:
         return 0.0
     return (s_home + s_away) / 2.0
@@ -391,7 +400,7 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         "Favorite Player":      fp_raw,
         "Upset Potential":      upset_raw,
         "Form":                 form_raw,
-        "Star Power":           _star_power_raw(home_code, away_code),
+        "Star Power":           _star_power_raw(home_code, away_code, int(row.get("Year", 0) or 0)),
         "Narrative":            narrative_raw,
         "Same Group":           fav_team_raw if row["Round"] in ("Group stage", "First round", "First group stage") else 0.0,
     }
@@ -553,6 +562,20 @@ def _match_info(row: dict, profile: UserProfile) -> dict:
     }
 
 
+def _feature_spread(feats: dict[str, float]) -> float:
+    """Standard deviation of feature values — higher = more informative."""
+    vals = list(feats.values())
+    if len(vals) < 2:
+        return 0.0
+    mean = sum(vals) / len(vals)
+    return (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+
+
+def _dominant_feature(feats: dict[str, float]) -> str:
+    """Which scorer has the highest raw value in this match."""
+    return max(feats, key=feats.get)
+
+
 def sample_historical_matches(
     profile: UserProfile,
     n: int = 15,
@@ -563,9 +586,15 @@ def sample_historical_matches(
     """
     Return n individual historical WC matches for single-match rating.
 
-    Weighted random sample: fav-team matches (3×), knockout matches (2×),
-    rest (1×). Supports exclude_ids to skip already-seen matches.
-    Default years: 2006–2022 (all recent World Cups with good data coverage).
+    Uses information-maximising sampling:
+      1. Extract features for all candidates
+      2. Filter out low-spread matches (uninformative — all features similar)
+      3. Stratify by dominant feature so the sample covers all 10 scorers
+      4. Within each stratum, prefer fav-team and knockout matches
+      5. Fill remaining slots from high-spread matches
+
+    This ensures the user's ratings produce strong signal for *every* scorer,
+    not just Upset Potential which dominates 56% of matches by default.
     """
     if years is None:
         years = list(range(1930, 2023, 4))  # all World Cups 1930-2022
@@ -589,26 +618,65 @@ def sample_historical_matches(
     rng  = random.Random(seed)
     favs = {t for t, a in profile.team_affinities.items() if a > 0}
 
-    # Weighted pool: each match appears 1, 2, or 3 times based on relevance
-    weighted: list[dict] = []
+    # ── Step 1: extract features and compute informativeness ─────────────
+    enriched: list[tuple[dict, dict[str, float], float, str]] = []
     for r in candidates:
+        feats  = _extract_features(r, profile)
+        spread = _feature_spread(feats)
+        dom    = _dominant_feature(feats)
+        enriched.append((r, feats, spread, dom))
+
+    # ── Step 2: filter out low-spread matches (bottom 15%) ───────────────
+    spreads_sorted = sorted(e[2] for e in enriched)
+    min_spread = spreads_sorted[len(spreads_sorted) // 7] if len(spreads_sorted) > 7 else 0.0
+    enriched = [e for e in enriched if e[2] >= min_spread]
+
+    # ── Step 3: stratify by dominant feature ─────────────────────────────
+    from classifier.learning import SCORER_NAMES
+    strata: dict[str, list] = {s: [] for s in SCORER_NAMES}
+    for e in enriched:
+        strata[e[3]].append(e)
+
+    # Sort each stratum: fav team first, then knockout, then by spread desc
+    def _sort_key(e):
+        r, feats, spread, dom = e
         hc = name_to_code(r["home_team"])
         ac = name_to_code(r["away_team"])
         is_fav  = hc in favs or ac in favs
         is_late = _ROUND_RAW.get(r["Round"], 0) >= 0.75
-        weight  = 3 if is_fav else (2 if is_late else 1)
-        weighted.extend([r] * weight)
+        return (-int(is_fav), -int(is_late), -spread)
 
-    rng.shuffle(weighted)
+    for s in strata:
+        rng.shuffle(strata[s])      # randomize within priority tiers
+        strata[s].sort(key=_sort_key)
 
-    # Deduplicate while preserving shuffle order
+    # ── Step 4: round-robin across strata ────────────────────────────────
+    selected: list[tuple[dict, dict[str, float]]] = []
     seen_ids: set[str] = set()
-    pool: list[dict]   = []
-    for r in weighted:
-        mid = _match_id(r)
+
+    # Guarantee at least 1 match per scorer that has candidates
+    for scorer in SCORER_NAMES:
+        if len(selected) >= n:
+            break
+        for e in strata[scorer]:
+            mid = _match_id(e[0])
+            if mid not in seen_ids:
+                seen_ids.add(mid)
+                selected.append((e[0], e[1]))
+                break
+
+    # ── Step 5: fill remaining slots from best available ─────────────────
+    # Pool all remaining by spread (most informative first), with fav bonus
+    remaining = [e for e in enriched if _match_id(e[0]) not in seen_ids]
+    remaining.sort(key=_sort_key)
+
+    for e in remaining:
+        if len(selected) >= n:
+            break
+        mid = _match_id(e[0])
         if mid not in seen_ids:
             seen_ids.add(mid)
-            pool.append(r)
+            selected.append((e[0], e[1]))
 
-    sample = pool[:min(n, len(pool))]
-    return [_match_info(r, profile) for r in sample]
+    rng.shuffle(selected)  # randomize presentation order
+    return [_match_info(r, profile) for r, _ in selected]
