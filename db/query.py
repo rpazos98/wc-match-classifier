@@ -437,6 +437,32 @@ def all_h2h_record(team_a: str, team_b: str) -> dict | None:
             "draws": row["draws"], "b_wins": row["a_wins"]}
 
 
+def wc_h2h_drama(team_a: str, team_b: str) -> dict | None:
+    """Return WC drama indicators for a pair, or None if no data."""
+    con = _connect()
+    row = con.execute(
+        "SELECT * FROM wc_h2h_drama "
+        "WHERE (team_a = ? AND team_b = ?) OR (team_a = ? AND team_b = ?)",
+        (team_a, team_b, team_b, team_a),
+    ).fetchone()
+    con.close()
+    if not row:
+        return None
+    return dict(row)
+
+
+def wc_drama_scores() -> dict[frozenset, float]:
+    """Returns {frozenset({a, b}): drama_score 0.0-1.0} from wc_h2h_drama."""
+    con = _connect()
+    try:
+        rows = con.execute("SELECT team_a, team_b, drama_score FROM wc_h2h_drama").fetchall()
+    except Exception:
+        con.close()
+        return {}
+    con.close()
+    return {frozenset({r["team_a"], r["team_b"]}): r["drama_score"] for r in rows}
+
+
 def recent_h2h_matches(team_a: str, team_b: str, n: int = 5) -> list[dict]:
     """Return last N matches between two teams from intl_results CSV."""
     from classifier.elo import _CODE_TO_CSV, _DATA

@@ -17,6 +17,7 @@ DB_PATH      = Path(__file__).parent.parent / "data" / "wc2026.db"
 CSV_PATH     = Path(__file__).parent.parent / "data" / "FC26_20250921.csv"
 INTL_RESULTS  = Path(__file__).parent.parent / "data" / "intl_results" / "results.csv"
 INTL_SCORERS  = Path(__file__).parent.parent / "data" / "intl_results" / "goalscorers.csv"
+WC_MATCHES   = Path(__file__).parent.parent / "data" / "wc_history" / "matches_1930_2022.csv"
 
 # ── FC26 nationality name → FIFA code mapping ─────────────────────────────────
 # Covers all WC 2026 teams that have players in the FC26 CSV by nationality.
@@ -143,6 +144,11 @@ def build(db_path: Path = DB_PATH, csv_path: Path = CSV_PATH) -> None:
         _ingest_intl_results(con, INTL_RESULTS, INTL_SCORERS)
     else:
         print("  intl_results CSVs not found — skipping")
+
+    if WC_MATCHES.exists():
+        _ingest_wc_drama(con, WC_MATCHES)
+    else:
+        print("  wc_history/matches_1930_2022.csv not found — skipping")
 
     _resolve_placeholders(con)
 
@@ -620,6 +626,15 @@ def _ingest_intl_results(
         )
     """)
 
+    # Build set of (date, team_name) tuples for FIFA World Cup matches
+    # so we can tag WC goals in the goalscorers CSV
+    wc_match_teams: set[tuple[str, str]] = set()
+    with open(results_csv, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row["tournament"] == "FIFA World Cup":
+                wc_match_teams.add((row["date"], row["home_team"]))
+                wc_match_teams.add((row["date"], row["away_team"]))
+
     # {(scorer, team_code): {total, wc, og, pen}}
     goal_tally: dict[tuple[str, str], dict] = defaultdict(
         lambda: {"total": 0, "wc": 0, "og": 0, "pen": 0}
@@ -639,8 +654,9 @@ def _ingest_intl_results(
                 t["og"] += 1
             if row.get("penalty", "").upper() == "TRUE":
                 t["pen"] += 1
-            # Detect WC goals via the scorers being in the wc_history matches file
-            # (approximation: we'll refine later; for now mark all as 0)
+            # Cross-reference with results.csv to detect WC goals
+            if (row["date"], team_name) in wc_match_teams:
+                t["wc"] += 1
 
     con.executemany(
         "INSERT INTO player_intl_goals VALUES (?,?,?,?,?,?)",
@@ -648,6 +664,116 @@ def _ingest_intl_results(
          for k, v in goal_tally.items()],
     )
     print(f"  player_intl_goals: {len(goal_tally)} scorer records")
+
+
+
+# ── WC historical match drama ─────────────────────────────────────────────────
+
+def _ingest_wc_drama(con: sqlite3.Connection, wc_csv: Path) -> None:
+    """
+    Ingest matches_1930_2022.csv to build wc_h2h_drama — per-pair drama indicators:
+      - total_goals: combined goals across all meetings
+      - close_matches: decided by 1 goal (or draws)
+      - penalty_shootouts: matches decided by shootout
+      - red_cards: total red cards in their meetings
+      - max_goals_match: highest-scoring single meeting
+      - drama_score: 0.0-1.0 composite drama indicator
+    """
+    con.execute("DROP TABLE IF EXISTS wc_h2h_drama")
+    con.execute("""
+        CREATE TABLE wc_h2h_drama (
+            team_a              TEXT NOT NULL,
+            team_b              TEXT NOT NULL,
+            total_goals         INTEGER DEFAULT 0,
+            matches             INTEGER DEFAULT 0,
+            close_matches       INTEGER DEFAULT 0,
+            penalty_shootouts   INTEGER DEFAULT 0,
+            red_cards           INTEGER DEFAULT 0,
+            max_goals_match     INTEGER DEFAULT 0,
+            drama_score         REAL DEFAULT 0.0,
+            PRIMARY KEY (team_a, team_b)
+        )
+    """)
+
+    drama: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"total_goals": 0, "matches": 0, "close": 0, "shootouts": 0,
+                 "reds": 0, "max_goals": 0}
+    )
+
+    with open(wc_csv, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            hname = row["home_team"].strip()
+            aname = row["away_team"].strip()
+            hcode = HIST_NAME_TO_CODE.get(hname)
+            acode = HIST_NAME_TO_CODE.get(aname)
+            if not hcode or not acode:
+                continue
+
+            try:
+                hs = int(row["home_score"])
+                as_ = int(row["away_score"])
+            except (ValueError, TypeError):
+                continue
+
+            key = (min(hcode, acode), max(hcode, acode))
+            d = drama[key]
+            d["matches"] += 1
+            total = hs + as_
+            d["total_goals"] += total
+            d["max_goals"] = max(d["max_goals"], total)
+
+            # Close match: 1-goal difference or draw
+            if abs(hs - as_) <= 1:
+                d["close"] += 1
+
+            # Penalty shootout
+            has_shootout = bool(row.get("home_penalty_shootout_goal_long", "").strip()
+                                or row.get("away_penalty_shootout_goal_long", "").strip())
+            if has_shootout:
+                d["shootouts"] += 1
+
+            # Red cards
+            reds = 0
+            for col in ("home_red_card", "away_red_card"):
+                val = row.get(col, "").strip()
+                if val:
+                    reds += len(val.split("|"))
+            d["reds"] += reds
+
+    # Compute drama_score: 0.0-1.0 composite
+    rows_to_insert = []
+    for (a, b), d in drama.items():
+        n = d["matches"]
+        if n == 0:
+            continue
+        # Components (each 0.0-1.0):
+        # 1. Goals per game intensity (cap at 4.0 gpg → 1.0)
+        gpg = d["total_goals"] / n
+        goals_factor = min(1.0, gpg / 4.0)
+        # 2. Close match ratio
+        close_factor = d["close"] / n
+        # 3. Shootout drama (any shootout is dramatic)
+        shootout_factor = min(1.0, d["shootouts"] / max(1, n) * 3.0)
+        # 4. Red card factor (any reds add spice)
+        red_factor = min(1.0, d["reds"] / (n * 2.0))
+
+        drama_score = round(
+            0.30 * goals_factor +
+            0.35 * close_factor +
+            0.25 * shootout_factor +
+            0.10 * red_factor,
+            4,
+        )
+        rows_to_insert.append((
+            a, b, d["total_goals"], n, d["close"], d["shootouts"],
+            d["reds"], d["max_goals"], drama_score,
+        ))
+
+    con.executemany(
+        "INSERT INTO wc_h2h_drama VALUES (?,?,?,?,?,?,?,?,?)",
+        rows_to_insert,
+    )
+    print(f"  wc_h2h_drama: {len(rows_to_insert)} pairs from {wc_csv.name}")
 
 
 # ── Playoff winner resolution ──────────────────────────────────────────────────

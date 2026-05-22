@@ -14,10 +14,38 @@ def _long_names() -> dict[str, str]:
     return player_long_names()
 
 
+def _lookup_goals(short_name: str) -> int:
+    """
+    Find international goal tally for a player, bridging naming gaps between
+    FC26 (legal names like "Lionel Andrés Messi Cuccitini") and
+    intl_results (common names like "Lionel Messi").
+    """
+    gmap = _goals_map()
+    long = _long_names().get(short_name)
+
+    # Try exact matches first: short_name, long_name
+    for name in (short_name, long):
+        if name and name in gmap:
+            return gmap[name]
+
+    # Try "First X" variants from long name — the intl_results CSV uses common
+    # names (e.g. "Lionel Messi") while FC26 uses legal names
+    # (e.g. "Lionel Andrés Messi Cuccitini"). Try each inner/last word.
+    if long:
+        parts = long.split()
+        if len(parts) >= 3:
+            first = parts[0]
+            for part in parts[1:]:
+                candidate = f"{first} {part}"
+                if candidate in gmap:
+                    return gmap[candidate]
+
+    return 0
+
+
 def _player_weight(short_name: str) -> float:
     """0.5–1.0 based on international goals. No goals data → 0.5 baseline."""
-    long = _long_names().get(short_name)
-    goals = _goals_map().get(long or short_name, 0)
+    goals = _lookup_goals(short_name)
     if goals >= 30:
         return 1.0
     if goals >= 15:

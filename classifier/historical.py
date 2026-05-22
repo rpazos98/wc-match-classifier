@@ -55,6 +55,19 @@ _NAME_TO_CODE: dict[str, str] = {
     "Angola":             "ANG", "Serbia and Montenegro": "SCG",
     "Togo":               "TOG", "Trinidad and Tobago":   "TRI",
     "Ukraine":            "UKR",
+    # Historical (pre-2006) — enables full 1930-2022 coverage
+    "Bolivia":            "BOL", "Bulgaria":            "BUL",
+    "China PR":           "CHN", "Cuba":                "CUB",
+    "Czechoslovakia":     "TCH", "Dutch East Indies":   "DEI",
+    "El Salvador":        "SLV", "FR Yugoslavia":       "YUG",
+    "Germany DR":         "GDR", "Haiti":               "HAI",
+    "Hungary":            "HUN", "Iraq":                "IRQ",
+    "Israel":             "ISR", "Jamaica":             "JAM",
+    "Kuwait":             "KUW", "Northern Ireland":    "NIR",
+    "Republic of Ireland":"IRL", "Romania":             "ROU",
+    "Soviet Union":       "URS", "Türkiye":             "TUR",
+    "United Arab Emirates":"UAE","West Germany":        "GER",
+    "Yugoslavia":         "YUG", "Zaire":               "COD",
 }
 
 
@@ -67,9 +80,11 @@ def name_to_code(name: str) -> str | None:
 _ROUND_RAW: dict[str, float] = {
     "Group stage":          0.25,
     "First round":          0.25,
-    "Group stage play-off": 0.25,
-    "Round of 16":          0.55,
+    "First group stage":    0.25,
+    "Group stage play-off": 0.35,
     "Second round":         0.40,
+    "Second group stage":   0.40,
+    "Round of 16":          0.55,
     "Quarter-finals":       0.75,
     "Semi-finals":          0.90,
     "Third-place match":    0.60,
@@ -80,10 +95,15 @@ _ROUND_RAW: dict[str, float] = {
 _ROUND_LABEL: dict[str, str] = {
     "Group stage":          "Fase de grupos",
     "First round":          "Primera ronda",
+    "First group stage":    "Primera fase de grupos",
+    "Group stage play-off": "Desempate de grupo",
+    "Second round":         "Segunda ronda",
+    "Second group stage":   "Segunda fase de grupos",
     "Round of 16":          "16avos",
     "Quarter-finals":       "Cuartos",
     "Semi-finals":          "Semifinal",
     "Third-place match":    "3er lugar",
+    "Final stage":          "Ronda final",
     "Final":                "Final",
 }
 
@@ -529,7 +549,7 @@ def sample_historical_matches(
     Default years: 2006–2022 (all recent World Cups with good data coverage).
     """
     if years is None:
-        years = [2006, 2010, 2014, 2018, 2022]
+        years = list(range(1930, 2023, 4))  # all World Cups 1930-2022
 
     excluded   = set(exclude_ids or [])
     year_set   = {str(y) for y in years}
