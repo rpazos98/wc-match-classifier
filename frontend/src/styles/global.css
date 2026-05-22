@@ -284,6 +284,33 @@ body {
   color: var(--text-sm);
 }
 
+/* ── Match filter bar ── */
+.match-filter-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surf);
+}
+.filter-btn {
+  padding: 4px 14px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: var(--surf2);
+  color: var(--text-sm);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  transition: all 0.15s;
+}
+.filter-btn:hover { color: var(--text); border-color: var(--green); }
+.filter-btn.active {
+  background: rgba(94,214,74,0.12);
+  border-color: var(--green);
+  color: var(--green);
+}
+
 /* ── Match list ── */
 .match-list-container {
   flex: 1;
