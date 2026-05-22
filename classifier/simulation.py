@@ -374,6 +374,9 @@ def run_monte_carlo(
         for mn, counts in _mwc.items()
     }
 
+    # Most likely champion
+    modal_champion = max(champion_counts, key=champion_counts.__getitem__)
+
     # KO matches weighted by importance: later rounds count more
     _weights: dict[int, float] = {}
     for mn in range(73, 89):  _weights[mn] = 1.0   # R32
@@ -381,7 +384,7 @@ def run_monte_carlo(
     for mn in range(97, 101): _weights[mn] = 2.0   # QF
     for mn in (101, 102):     _weights[mn] = 3.0   # SF
     _weights[103] = 1.5                             # 3rd place
-    _weights[104] = 4.0                             # Final
+    _weights[104] = 5.0                             # Final (highest weight)
 
     def _score(ko_winners: dict[int, str]) -> float:
         return sum(
@@ -390,7 +393,16 @@ def run_monte_carlo(
             if modal.get(mn) == winner
         )
 
-    best_seed = max(run_ko_winners, key=lambda x: _score(x[1]))[0]
+    # Step 1: filter runs where the modal champion actually wins
+    champion_runs = [
+        (s, kw) for s, kw in run_ko_winners
+        if kw.get(104) == modal_champion
+    ]
+    # Fallback to all runs if no champion runs (shouldn't happen)
+    candidate_runs = champion_runs if champion_runs else run_ko_winners
+
+    # Step 2: among those, pick the run most aligned with modal winners
+    best_seed = max(candidate_runs, key=lambda x: _score(x[1]))[0]
     representative = simulate_bracket(matches, seed=best_seed)
 
     return MonteCarloResult(
