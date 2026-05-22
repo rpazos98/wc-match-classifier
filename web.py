@@ -577,10 +577,11 @@ def get_weights():
 # ── Preference learning ────────────────────────────────────────────────────────
 
 @app.get("/api/learn/matches")
-def get_learn_matches(n: int = 15, seed: int | None = None, exclude: str = ""):
+def get_learn_matches(n: int = 15, seed: int | None = None, exclude: str = "", years: str = ""):
     from classifier.historical import sample_historical_matches
     exclude_ids = [x for x in exclude.split(",") if x]
-    matches = sample_historical_matches(_profile, n=n, seed=seed, exclude_ids=exclude_ids)
+    year_list = [int(y) for y in years.split(",") if y.strip().isdigit()] or None
+    matches = sample_historical_matches(_profile, n=n, seed=seed, exclude_ids=exclude_ids, years=year_list)
     return {"matches": matches, "total": len(matches)}
 
 

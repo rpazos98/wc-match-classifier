@@ -1401,6 +1401,33 @@ input[type="checkbox"] { accent-color: var(--green); cursor: pointer; width: 16p
 .llm-empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
 
 
+/* ── WC memory selector ── */
+.wc-check-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.wc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wc-check:hover { border-color: var(--gold); }
+.wc-check:has(input:checked) {
+  border-color: var(--green);
+  background: rgba(94,214,74,0.08);
+}
+.wc-check input { margin: 0; accent-color: var(--green); }
+.wc-check-label { color: var(--text); white-space: nowrap; }
+
 /* ── Learn modal ── */
 #learn-overlay {
   position: fixed; inset: 0;
@@ -3368,7 +3395,69 @@ const LS = {
   idx:     0,         // position within current batch
   ratings: [],        // all accumulated {raw, rating} across all batches
   seenIds: new Set(), // match_ids already shown (excluded from next batch)
+  wcYears: null,      // which WC years the user remembers (null = ask first)
 };
+
+const WC_YEARS_INFO = [
+  { year: 2022, host: 'Qatar',          flag: '🇶🇦' },
+  { year: 2018, host: 'Rusia',          flag: '🇷🇺' },
+  { year: 2014, host: 'Brasil',         flag: '🇧🇷' },
+  { year: 2010, host: 'Sudáfrica',      flag: '🇿🇦' },
+  { year: 2006, host: 'Alemania',       flag: '🇩🇪' },
+  { year: 2002, host: 'Corea/Japón',    flag: '🇰🇷' },
+  { year: 1998, host: 'Francia',        flag: '🇫🇷' },
+  { year: 1994, host: 'Estados Unidos', flag: '🇺🇸' },
+  { year: 1990, host: 'Italia',         flag: '🇮🇹' },
+  { year: 1986, host: 'México',         flag: '🇲🇽' },
+  { year: 1982, host: 'España',         flag: '🇪🇸' },
+  { year: 1978, host: 'Argentina',      flag: '🇦🇷' },
+  { year: 1974, host: 'Alemania',       flag: '🇩🇪' },
+  { year: 1970, host: 'México',         flag: '🇲🇽' },
+  { year: 1966, host: 'Inglaterra',     flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+];
+
+function _renderWcSelector() {
+  const stored = localStorage.getItem('wc2026_remembered_wcs');
+  if (stored) {
+    LS.wcYears = JSON.parse(stored);
+    return false; // skip selector, already configured
+  }
+
+  const checks = WC_YEARS_INFO.map(w =>
+    `<label class="wc-check" data-yr="${w.year}">
+       <input type="checkbox" value="${w.year}" checked>
+       <span class="wc-check-label">${w.flag} ${w.year} ${w.host}</span>
+     </label>`
+  ).join('');
+
+  document.getElementById('learn-body').innerHTML = `
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-family:var(--font-display);font-size:14px;letter-spacing:1.5px;color:var(--gold);margin-bottom:8px">¿QUÉ MUNDIALES RECORDÁS?</div>
+      <div style="color:var(--text-sm);font-size:12px;line-height:1.6;max-width:380px;margin:0 auto">
+        Seleccioná los mundiales que viste o de los que tenés buenos recuerdos.<br>
+        Así te mostramos partidos que realmente conocés.
+      </div>
+    </div>
+    <div class="wc-check-grid">${checks}</div>
+    <div style="text-align:center;margin-top:16px">
+      <button class="btn btn-primary" style="font-size:13px;padding:8px 24px" onclick="_confirmWcYears()">
+        Empezar →
+      </button>
+    </div>`;
+  return true; // showed selector
+}
+
+function _confirmWcYears() {
+  const checked = [...document.querySelectorAll('.wc-check input:checked')]
+    .map(el => parseInt(el.value));
+  if (checked.length === 0) {
+    toast('Seleccioná al menos un mundial');
+    return;
+  }
+  LS.wcYears = checked;
+  localStorage.setItem('wc2026_remembered_wcs', JSON.stringify(checked));
+  _loadLearnBatch(15);
+}
 
 function _renderLearnMatch() {
   const match    = LS.matches[LS.idx];
@@ -3653,6 +3742,8 @@ async function resetLearning() {
   if (!confirm('¿Borrar todos los ratings y volver a los pesos por defecto?')) return;
   try {
     await api('DELETE', '/api/learn/ratings');
+    localStorage.removeItem('wc2026_remembered_wcs');
+    LS.wcYears = null;
     closeLearnModal();
     const data = await api('GET', '/api/matches');
     _applyMatchData(data);
@@ -3668,8 +3759,9 @@ async function _loadLearnBatch(n = 15) {
     '<div style="text-align:center;padding:40px;color:var(--text-sm)">Cargando partidos históricos…</div>';
   const excludeParam = [...LS.seenIds].join(',');
   const seed = Math.floor(Math.random() * 99999);
+  const yearsParam = LS.wcYears ? `&years=${LS.wcYears.join(',')}` : '';
   try {
-    const data = await api('GET', `/api/learn/matches?n=${n}&seed=${seed}&exclude=${encodeURIComponent(excludeParam)}`);
+    const data = await api('GET', `/api/learn/matches?n=${n}&seed=${seed}&exclude=${encodeURIComponent(excludeParam)}${yearsParam}`);
     if (!data.matches || data.matches.length === 0) {
       document.getElementById('learn-body').innerHTML =
         '<div style="text-align:center;padding:40px;color:var(--text-sm)">Ya clasificaste todos los partidos disponibles. 🎉</div>';
@@ -3720,7 +3812,12 @@ async function openLearnModal() {
     }
   } catch(_) {}
 
-  await _loadLearnBatch(15);
+  // First time: ask which World Cups they remember
+  const showed = _renderWcSelector();
+  if (!showed) {
+    // Already configured — go straight to matches
+    await _loadLearnBatch(15);
+  }
 }
 
 async function _continueFromState() {
