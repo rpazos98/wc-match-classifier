@@ -90,7 +90,113 @@ _SF_FEEDS: dict[int, tuple[int, int]] = {
 _T3_SLOT_MATCH_NUMS = {75, 78, 79, 80, 81, 82, 85, 88}
 
 
-# ── ELO helpers ────────────────────────────────────────────────────────────────
+# ── Host nations (home advantage in WC 2026) ─────────────────────────────────
+_HOST_CODES = frozenset({"USA", "CAN", "MEX"})
+_HOST_ELO_BOOST = 60.0   # ~60 ELO ≈ home crowd boost (lower than full 100 since partial)
+
+
+# ── Multi-factor team strength ────────────────────────────────────────────────
+
+@dataclass
+class _TeamProfile:
+    elo: float
+    quality: float     # 0-1 from FC26 squad ratings
+    form: float        # -1 to 1 from ELO momentum
+    attack: float      # 0-1 from top-11 shooting
+    defense: float     # 0-1 from top-11 defending
+
+
+_team_profiles_cache: dict[str, _TeamProfile] | None = None
+
+
+def _load_team_profiles() -> dict[str, _TeamProfile]:
+    global _team_profiles_cache
+    if _team_profiles_cache is not None:
+        return _team_profiles_cache
+
+    from classifier.elo import current_elo, form_delta
+    from db.query import (team_quality_scores, team_attack_scores,
+                          team_defense_scores)
+
+    quality = team_quality_scores()
+    attack  = team_attack_scores()
+    defense = team_defense_scores()
+
+    profiles: dict[str, _TeamProfile] = {}
+    all_codes = set(quality.keys()) | set(attack.keys()) | set(defense.keys())
+    for code in all_codes:
+        profiles[code] = _TeamProfile(
+            elo     = current_elo(code),
+            quality = quality.get(code, 0.4),
+            form    = form_delta(code),
+            attack  = attack.get(code, 0.5),
+            defense = defense.get(code, 0.5),
+        )
+
+    _team_profiles_cache = profiles
+    return profiles
+
+
+def _composite_elo(code: str, is_home_host: bool = False) -> float:
+    """
+    Blend ELO with squad quality and form into a composite rating.
+
+    Formula: base_elo + quality_adj + form_adj + host_adj
+      - quality_adj: how much FC26 squad quality deviates from ELO expectation
+      - form_adj: recent momentum (hot/cold streaks)
+      - host_adj: home crowd boost for USA/CAN/MEX
+    """
+    profiles = _load_team_profiles()
+    p = profiles.get(code)
+    if not p:
+        from classifier.elo import current_elo
+        return current_elo(code) + (_HOST_ELO_BOOST if is_home_host else 0.0)
+
+    # Base ELO
+    base = p.elo
+
+    # Quality adjustment: if squad is stronger/weaker than ELO suggests
+    # Map quality (0-1) to expected ELO range (1300-2100), compare with actual
+    expected_from_quality = 1300 + p.quality * 800
+    quality_adj = (expected_from_quality - base) * 0.25  # 25% weight
+
+    # Form adjustment: ±50 ELO for hot/cold streaks
+    form_adj = p.form * 50.0
+
+    # Host advantage
+    host_adj = _HOST_ELO_BOOST if is_home_host else 0.0
+
+    return base + quality_adj + form_adj + host_adj
+
+
+def _composite_win_probability(
+    home: str,
+    away: str,
+    home_venue: str = "",
+) -> tuple[float, float, float]:
+    """
+    Multi-factor win probability using composite ELO.
+    Returns (p_home, p_draw, p_away).
+    """
+    import math
+
+    home_is_host = home in _HOST_CODES
+    away_is_host = away in _HOST_CODES
+
+    r_home = _composite_elo(home, is_home_host=home_is_host)
+    r_away = _composite_elo(away, is_home_host=away_is_host)
+
+    exp_home = 1.0 / (1.0 + 10.0 ** ((r_away - r_home) / 400.0))
+
+    diff   = abs(r_home - r_away)
+    p_draw = 0.28 * math.exp(-((diff / 200.0) ** 2))
+
+    p_decisive = 1.0 - p_draw
+    p_home     = exp_home * p_decisive
+    p_away     = (1.0 - exp_home) * p_decisive
+
+    return p_home, p_draw, p_away
+
 
 def _elo_to_q(elo: float) -> float:
     """Map ELO to 0-1 quality scale. 1500→0.30, 1700→0.50, 2000→0.80."""
@@ -306,19 +412,15 @@ def _sim_ko(
     rng: random.Random,
 ) -> tuple[str, str, int, int]:
     """Simulate a knockout match → (winner, loser, home_goals, away_goals). No draws."""
-    from classifier.elo import win_probability, current_elo
-    p_home, _, p_away = win_probability(home, away, neutral=True)
+    p_home, _, p_away = _composite_win_probability(home, away)
     total = p_home + p_away
     p_hw = p_home / total if total > 0 else 0.5
+    profiles = _load_team_profiles()
     if rng.random() < p_hw:
-        q_w = _elo_to_q(current_elo(home))
-        q_l = _elo_to_q(current_elo(away))
-        wg, lg = _sim_score(q_w, q_l, rng)
+        wg, lg = _sim_score_v2(profiles.get(home), profiles.get(away), rng)
         return home, away, wg, lg
     else:
-        q_w = _elo_to_q(current_elo(away))
-        q_l = _elo_to_q(current_elo(home))
-        wg, lg = _sim_score(q_w, q_l, rng)
+        wg, lg = _sim_score_v2(profiles.get(away), profiles.get(home), rng)
         return away, home, lg, wg
 
 
@@ -336,26 +438,48 @@ def _poisson(lam: float, rng: random.Random) -> int:
 def _sim_score(q_winner: float, q_loser: float, rng: random.Random) -> tuple[int, int]:
     """
     Return (winner_goals, loser_goals) calibrated to WC historical distributions.
-
-    Historical WC decisive matches:
-      Winner goals: avg ~2.3 — 1(25%), 2(36%), 3(22%), 4(8%)
-      Loser goals:  avg ~0.5 — 0(58%), 1(35%), 2(6%), 3(1%)
-    Previous model (randint-based) produced avg 4.7 goals — far too high.
-
-    Approach: sample loser goals and winning margin independently.
-      l_goals ~ Poisson(lam_l)          — how well loser attacks
-      margin  ~ Poisson(lam_m) + 1      — winning margin ≥ 1
-      w_goals = l_goals + margin
-
-    Parameters calibrated via grid search on WC 1930–2022 data:
-      Quality scores range 0.06–0.86, mean ≈ 0.50.
+    Legacy version using raw quality scores.
     """
     gap   = q_winner - q_loser
-    lam_l = 0.3 + q_loser * 0.8        # q=0.06→0.35  q=0.50→0.70  q=0.86→0.99
-    lam_m = max(0.1, 0.5 + gap * 0.8)  # equal→0.5  big gap (0.8)→1.14
+    lam_l = 0.3 + q_loser * 0.8
+    lam_m = max(0.1, 0.5 + gap * 0.8)
 
     l_goals = _poisson(lam_l, rng)
     margin  = 1 + _poisson(lam_m, rng)
+    return l_goals + margin, l_goals
+
+
+def _sim_score_v2(
+    winner: _TeamProfile | None,
+    loser: _TeamProfile | None,
+    rng: random.Random,
+) -> tuple[int, int]:
+    """
+    Return (winner_goals, loser_goals) using team attack/defense profiles.
+
+    Uses team-specific attack vs opponent defense rather than generic quality:
+      - Loser goals driven by loser's attack vs winner's defense
+      - Margin driven by ELO gap + winner's attack edge
+    """
+    if not winner or not loser:
+        q_w = _elo_to_q(winner.elo if winner else 1500)
+        q_l = _elo_to_q(loser.elo if loser else 1500)
+        return _sim_score(q_w, q_l, rng)
+
+    # Attack power: team's attack * (1 - opponent's defense dampening)
+    w_power = winner.attack * (1.0 - loser.defense * 0.5)
+    l_power = loser.attack * (1.0 - winner.defense * 0.5)
+
+    # Loser goals: how much they can score despite losing
+    lam_loser = 0.2 + l_power * 1.2
+
+    # Winning margin: ELO gap + attack edge
+    elo_gap = max(0.0, (winner.elo - loser.elo) / 800.0)
+    attack_edge = max(0.0, w_power - l_power)
+    lam_margin = max(0.1, 0.4 + elo_gap * 0.6 + attack_edge * 0.5)
+
+    l_goals = _poisson(lam_loser, rng)
+    margin  = 1 + _poisson(lam_margin, rng)
     return l_goals + margin, l_goals
 
 
@@ -378,9 +502,8 @@ def _simulate_groups(
     Returns ({group_letter: [{'team','pts','gd','gf'}, ...]}, {match_num: winner}, {match_num: (hg, ag)}).
     Standings sorted by pts → gd → gf (FIFA criteria 1-3 for best-third selection).
     """
-    from classifier.elo import win_probability, current_elo
-
     team_group = _load_team_groups()
+    profiles   = _load_team_profiles()
 
     all_teams: dict[str, set[str]] = {}
     for m in group_matches:
@@ -400,14 +523,12 @@ def _simulate_groups(
     for m in group_matches:
         if m.home == "TBD" or m.away == "TBD":
             continue
-        p_home, p_draw, p_away = win_probability(m.home, m.away, neutral=True)
+        p_home, p_draw, p_away = _composite_win_probability(m.home, m.away)
         r     = rng.random()
         hw    = p_home
         mn    = int(m.match_id[1:])
         if r < hw:
-            q_h = _elo_to_q(current_elo(m.home))
-            q_a = _elo_to_q(current_elo(m.away))
-            hg, ag = _sim_score(q_h, q_a, rng)
+            hg, ag = _sim_score_v2(profiles.get(m.home), profiles.get(m.away), rng)
             pts[m.home] += 3
             gf[m.home]  += hg;  gf[m.away]  += ag
             gd[m.home]  += hg - ag;  gd[m.away]  -= hg - ag
@@ -418,9 +539,7 @@ def _simulate_groups(
             gf[m.home]  += hg;  gf[m.away]  += ag
             match_winners[mn] = m.home if p_home >= p_away else m.away
         else:
-            q_a = _elo_to_q(current_elo(m.away))
-            q_h = _elo_to_q(current_elo(m.home))
-            ag, hg = _sim_score(q_a, q_h, rng)
+            ag, hg = _sim_score_v2(profiles.get(m.away), profiles.get(m.home), rng)
             pts[m.away] += 3
             gf[m.home]  += hg;  gf[m.away]  += ag
             gd[m.away]  += ag - hg;  gd[m.home]  -= ag - hg
