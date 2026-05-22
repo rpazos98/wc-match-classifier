@@ -7,6 +7,7 @@ import ProbabilityBar from './ProbabilityBar';
 import ContributionList from './ContributionList';
 import H2HSection from './H2HSection';
 import StarsSection from './StarsSection';
+import ComparisonView from './ComparisonView';
 
 /* ── Disclosure section (progressive disclosure) ───────────────────────────── */
 
@@ -203,6 +204,16 @@ export default function DetailPanel() {
   const dispatch = useAppDispatch();
 
   const m = selectedId ? matchById[selectedId] : null;
+  const pinnedMatch = pinnedId ? matchById[pinnedId] : null;
+
+  // Comparison mode: pinned match + different selected match
+  if (pinnedMatch && m && pinnedMatch.match_id !== m.match_id) {
+    return (
+      <aside id="detail">
+        <ComparisonView matchA={pinnedMatch} matchB={m} />
+      </aside>
+    );
+  }
 
   if (!m) {
     return (
