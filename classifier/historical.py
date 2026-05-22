@@ -148,6 +148,22 @@ def _wc_meetings() -> dict[frozenset, int]:
     except Exception:
         return {}
 
+@lru_cache(maxsize=1)
+def _wc_drama() -> dict[frozenset, float]:
+    try:
+        from db.query import wc_drama_scores
+        return wc_drama_scores()
+    except Exception:
+        return {}
+
+@lru_cache(maxsize=1)
+def _all_h2h() -> dict[frozenset, float]:
+    try:
+        from db.query import all_h2h_scores
+        return all_h2h_scores()
+    except Exception:
+        return {}
+
 
 def _rivalry_raw(code_a: str, code_b: str) -> float:
     h2h  = _wc_h2h()
@@ -347,9 +363,12 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
     # Upset Potential: pre-match ELO probability gap
     upset_raw = _elo_upset(home_code, away_code, match_date)
 
-    # Narrative: WC meeting count + rivalry intensity combined
+    # Narrative: WC meetings + rivalry + drama + all-competition H2H
+    # (mirrors NarrativeScorer.score formula)
     pair       = frozenset({home_code, away_code}) if home_code and away_code else frozenset()
     n_meetings = _wc_meetings().get(pair, 0)
+    drama      = _wc_drama().get(pair, 0.0)
+    all_h2h    = _all_h2h().get(pair, 0.0)
 
     def _meetings_score(n: int) -> float:
         if n == 0:  return 0.0
@@ -359,7 +378,7 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         return 1.0
 
     wc_combined    = max(_meetings_score(n_meetings), rivalry_raw)
-    narrative_raw  = min(1.0, 0.65 * wc_combined + 0.35 * rivalry_raw)
+    narrative_raw  = min(1.0, 0.50 * wc_combined + 0.20 * drama + 0.30 * all_h2h)
 
     # Form: ELO momentum up to match date
     form_raw = _elo_form(home_code, away_code, match_date)
@@ -374,7 +393,7 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         "Form":                 form_raw,
         "Star Power":           _star_power_raw(home_code, away_code),
         "Narrative":            narrative_raw,
-        "Same Group":           fav_team_raw if row["Round"] in ("Group stage", "First round") else 0.0,
+        "Same Group":           fav_team_raw if row["Round"] in ("Group stage", "First round", "First group stage") else 0.0,
     }
 
 
@@ -392,7 +411,7 @@ def sample_historical_pairs(
     actual scores, and goal scorer info for richer display.
     """
     if years is None:
-        years = [2018, 2022]
+        years = list(range(1930, 2023, 4))  # all World Cups 1930-2022
 
     year_set = {str(y) for y in years}
     history  = _load_history()

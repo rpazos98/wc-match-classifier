@@ -217,34 +217,6 @@ def wc_rivals(min_meetings: int = 3) -> dict[str, set[str]]:
     return result
 
 
-# ── Team form scores ───────────────────────────────────────────────────────────
-
-def team_form_scores() -> dict[str, float]:
-    """
-    Returns {fifa_code: form_score 0.0–1.0} from last 8 competitive matches.
-    W=1.0, D=0.5, L=0.0. Teams with < 3 competitive matches are excluded (caller abstains).
-    """
-    con = _connect()
-    rows = con.execute("""
-        WITH ranked AS (
-            SELECT fifa_code, result,
-                   ROW_NUMBER() OVER (PARTITION BY fifa_code ORDER BY match_date DESC) AS rn
-            FROM team_form
-            WHERE is_competitive = 1
-        ),
-        last8 AS (
-            SELECT fifa_code, result FROM ranked WHERE rn <= 8
-        )
-        SELECT fifa_code,
-               SUM(CASE result WHEN 'W' THEN 1.0 WHEN 'D' THEN 0.5 ELSE 0.0 END) / COUNT(*) AS form_score
-        FROM last8
-        GROUP BY fifa_code
-        HAVING COUNT(*) >= 3
-    """).fetchall()
-    con.close()
-    return {r["fifa_code"]: r["form_score"] for r in rows}
-
-
 # ── Dark horse teams ───────────────────────────────────────────────────────────
 
 def dark_horse_teams(threshold: float = 0.15) -> set[str]:
