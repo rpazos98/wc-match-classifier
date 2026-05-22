@@ -422,7 +422,7 @@ class _SimIn(BaseModel):
     seed: int | None = None
 
 
-_MC_N_SIMS = 500  # number of Monte Carlo iterations
+_MC_N_SIMS = 5000  # number of Monte Carlo iterations
 
 
 @app.post("/api/simulate")
