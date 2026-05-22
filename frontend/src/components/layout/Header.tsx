@@ -44,6 +44,11 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
           </span>
         ))}
         <div className="pipe-spacer" />
+        {simulated && (
+          <button className="btn btn-icon" onClick={onSimulate} title="Re-simular con nueva semilla">
+            🔄
+          </button>
+        )}
       </div>
     </header>
   );
