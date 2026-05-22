@@ -14,7 +14,8 @@ import { useProfile } from './hooks/useProfile';
 import { simulate } from './api/matches';
 
 function AppInner() {
-  const { activeTab } = useAppState();
+  const state = useAppState();
+  const { activeTab } = state;
   const dispatch = useAppDispatch();
   const toast = useToast();
 
@@ -25,9 +26,10 @@ function AppInner() {
   const { matchData, error: matchError, refresh: refreshMatches } = useMatches();
   const { profile, error: profileError } = useProfile();
 
-  // Sync SWR data → app state
+  // Sync SWR data → app state (skip when simulated — sim has its own matches)
+  const { simulated } = state;
   useEffect(() => {
-    if (matchData) {
+    if (matchData && !simulated) {
       dispatch({
         type: 'SET_MATCHES',
         matches: matchData.matches,
@@ -36,7 +38,7 @@ function AppInner() {
         hasLearned: matchData.has_learned,
       });
     }
-  }, [matchData, dispatch]);
+  }, [matchData, dispatch, simulated]);
 
   useEffect(() => {
     if (profile) {
