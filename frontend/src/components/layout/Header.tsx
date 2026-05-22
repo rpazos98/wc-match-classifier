@@ -7,13 +7,19 @@ interface HeaderProps {
 }
 
 export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: HeaderProps) {
-  const { simulated, hasLearned, seed, activeTab } = useAppState();
+  const { simulating, simulated, hasLearned, seed, activeTab } = useAppState();
+
+  const simLabel = simulating
+    ? 'Simulando...'
+    : simulated
+      ? 'Simulado'
+      : 'Simular';
 
   const steps = [
-    { num: 1, label: 'Perfil',       done: true,        active: false,                onClick: onOpenProfile },
-    { num: 2, label: 'Partidos',     done: false,       active: activeTab === 'matches', onClick: undefined },
-    { num: 3, label: simulated ? 'Simulado' : 'Simular', done: simulated, active: false, onClick: onSimulate },
-    { num: 4, label: 'Personalizar', done: hasLearned,  active: false,                onClick: onOpenLearn },
+    { num: 1, label: 'Perfil',        done: true,        active: false,                    onClick: onOpenProfile, disabled: false },
+    { num: 2, label: 'Partidos',      done: false,       active: activeTab === 'matches',  onClick: undefined,     disabled: false },
+    { num: 3, label: simLabel,        done: simulated,   active: simulating,               onClick: onSimulate,    disabled: simulating },
+    { num: 4, label: 'Personalizar',  done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
   ];
 
   return (
@@ -21,8 +27,13 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
       <div className="header-top">
         <h1>{'🏆 Tu Tiempo, Tu Mundial 2026'}</h1>
         <div className="header-meta">
-          {simulated && seed != null && (
-            <span id="seed-badge">Seed #{seed}</span>
+          {simulating && (
+            <span id="seed-badge" style={{ color: 'var(--amber)' }}>
+              ⏳ 5000 simulaciones...
+            </span>
+          )}
+          {!simulating && simulated && seed != null && (
+            <span id="seed-badge">🎲 semilla {seed}</span>
           )}
         </div>
       </div>
@@ -37,6 +48,7 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
                 (step.active ? ' active' : '')
               }
               onClick={step.onClick}
+              disabled={step.disabled}
             >
               <span className="pipe-num">{step.num}</span>
               <span className="pipe-label">{step.label}</span>
@@ -44,7 +56,7 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
           </span>
         ))}
         <div className="pipe-spacer" />
-        {simulated && (
+        {simulated && !simulating && (
           <button className="btn btn-icon" onClick={onSimulate} title="Re-simular con nueva semilla">
             🔄
           </button>

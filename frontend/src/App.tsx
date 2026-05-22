@@ -56,7 +56,7 @@ function AppInner() {
 
   const handleSimulate = useCallback(async () => {
     try {
-      toast('Simulando torneo...');
+      dispatch({ type: 'SET_SIMULATING' });
       const data = await simulate();
       // Find actual winners from the representative bracket
       const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
@@ -81,6 +81,7 @@ function AppInner() {
       dispatch({ type: 'SET_TAB', tab: 'bracket' });
       toast(`Simulacion completa (semilla ${data.seed})`);
     } catch (err) {
+      dispatch({ type: 'CLEAR_BRACKET' }); // resets simulating
       const msg = err instanceof Error ? err.message : String(err);
       toast('\u26A0 Error al simular: ' + msg);
     }

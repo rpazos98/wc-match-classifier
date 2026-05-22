@@ -40,6 +40,7 @@ export interface AppState {
   hasLearned: boolean;
 
   bracketData: BracketData | null;
+  simulating: boolean;
   simulated: boolean;
   seed: number | null;
 
@@ -60,6 +61,7 @@ const initialState: AppState = {
   hasLearned: false,
 
   bracketData: null,
+  simulating: false,
   simulated: false,
   seed: null,
 
@@ -82,6 +84,7 @@ type Action =
       defaultWeights: Record<string, number>;
       hasLearned: boolean;
     }
+  | { type: 'SET_SIMULATING' }
   | { type: 'SET_BRACKET'; bracketData: BracketData; seed: number; matches: Match[]; weights: Record<string, ScorerWeight> }
   | { type: 'CLEAR_BRACKET' }
   | { type: 'SELECT_MATCH'; id: string | null }
@@ -116,10 +119,14 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case 'SET_SIMULATING':
+      return { ...state, simulating: true };
+
     case 'SET_BRACKET':
       return {
         ...state,
         bracketData: action.bracketData,
+        simulating: false,
         simulated: true,
         seed: action.seed,
         matches: action.matches,
@@ -131,6 +138,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         bracketData: null,
+        simulating: false,
         simulated: false,
         seed: null,
       };
