@@ -397,12 +397,12 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
         "Match Stage":          stage_raw,
         "Competitive Tension":  competitive_tension_raw,
         "Chaos Potential":      goal_fest_raw,
-        "Favorite Player":      fp_raw,
+        "Favorite Player":      0.0,   # neutral: historical goal-scorer matching is too noisy for learning
         "Upset Potential":      upset_raw,
         "Form":                 form_raw,
         "Star Power":           _star_power_raw(home_code, away_code, int(row.get("Year", 0) or 0)),
         "Narrative":            narrative_raw,
-        "Same Group":           fav_team_raw if row["Round"] in ("Group stage", "First round", "First group stage") else 0.0,
+        "Same Group":           0.0,   # neutral: no real "same group" context in historical matches
     }
 
 
@@ -576,6 +576,19 @@ def _dominant_feature(feats: dict[str, float]) -> str:
     return max(feats, key=feats.get)
 
 
+def _diagnostic_score(feature_idx: int, vec: list[float]) -> float:
+    """
+    How diagnostic a match is for a specific scorer.
+    High when that scorer is high AND others are low.
+    """
+    val = vec[feature_idx]
+    if val < 0.20:
+        return 0.0
+    others = [v for i, v in enumerate(vec) if i != feature_idx]
+    others_mean = sum(others) / len(others) if others else 0.0
+    return val * val / (others_mean + 0.05)
+
+
 def sample_historical_matches(
     profile: UserProfile,
     n: int = 15,
@@ -586,15 +599,16 @@ def sample_historical_matches(
     """
     Return n individual historical WC matches for single-match rating.
 
-    Uses information-maximising sampling:
+    Uses diagnostic-core-first sampling:
       1. Extract features for all candidates
-      2. Filter out low-spread matches (uninformative — all features similar)
-      3. Stratify by dominant feature so the sample covers all 10 scorers
-      4. Within each stratum, prefer fav-team and knockout matches
-      5. Fill remaining slots from high-spread matches
+      2. Select the single most diagnostic match per scorer — the match
+         where that scorer is high and everything else is low, so the
+         user's rating directly reveals preference for that dimension
+      3. Fill remaining slots with diverse, high-spread matches
+      4. Randomize presentation order
 
-    This ensures the user's ratings produce strong signal for *every* scorer,
-    not just Upset Potential which dominates 56% of matches by default.
+    This ensures each rating produces maximum information about which
+    scorers the user actually cares about.
     """
     if years is None:
         years = list(range(1930, 2023, 4))  # all World Cups 1930-2022
@@ -617,66 +631,68 @@ def sample_historical_matches(
 
     rng  = random.Random(seed)
     favs = {t for t, a in profile.team_affinities.items() if a > 0}
-
-    # ── Step 1: extract features and compute informativeness ─────────────
-    enriched: list[tuple[dict, dict[str, float], float, str]] = []
-    for r in candidates:
-        feats  = _extract_features(r, profile)
-        spread = _feature_spread(feats)
-        dom    = _dominant_feature(feats)
-        enriched.append((r, feats, spread, dom))
-
-    # ── Step 2: filter out low-spread matches (bottom 15%) ───────────────
-    spreads_sorted = sorted(e[2] for e in enriched)
-    min_spread = spreads_sorted[len(spreads_sorted) // 7] if len(spreads_sorted) > 7 else 0.0
-    enriched = [e for e in enriched if e[2] >= min_spread]
-
-    # ── Step 3: stratify by dominant feature ─────────────────────────────
     from classifier.learning import SCORER_NAMES
-    strata: dict[str, list] = {s: [] for s in SCORER_NAMES}
-    for e in enriched:
-        strata[e[3]].append(e)
 
-    # Sort each stratum: fav team first, then knockout, then by spread desc
-    def _sort_key(e):
-        r, feats, spread, dom = e
+    # ── Step 1: extract features for all candidates ──────────────────────
+    enriched: list[tuple[dict, dict[str, float], list[float]]] = []
+    for r in candidates:
+        feats = _extract_features(r, profile)
+        vec   = [feats[s] for s in SCORER_NAMES]
+        enriched.append((r, feats, vec))
+
+    selected: list[tuple[dict, dict[str, float]]] = []
+    seen_ids: set[str] = set()
+
+    # ── Step 2: diagnostic core — best isolating match per scorer ────────
+    # For each scorer, find the match where it's highest relative to others.
+    # This is the match whose rating most directly reveals preference for
+    # that scorer: "if user rates this high, they care about X".
+    for i, scorer in enumerate(SCORER_NAMES):
+        if len(selected) >= n:
+            break
+
+        best_e    = None
+        best_diag = -1.0
+        for r, feats, vec in enriched:
+            mid = _match_id(r)
+            if mid in seen_ids:
+                continue
+            diag = _diagnostic_score(i, vec)
+            # Mild bonus for matches involving user's fav teams (more engaging)
+            hc = name_to_code(r["home_team"])
+            ac = name_to_code(r["away_team"])
+            if hc in favs or ac in favs:
+                diag *= 1.3
+            if diag > best_diag:
+                best_diag = diag
+                best_e    = (r, feats)
+
+        if best_e:
+            seen_ids.add(_match_id(best_e[0]))
+            selected.append(best_e)
+
+    # ── Step 3: fill remaining slots with diverse matches ────────────────
+    # Prefer high-spread (informative) + fav-team + knockout
+    def _fill_key(e):
+        r, feats, vec = e
+        spread = _feature_spread(feats)
         hc = name_to_code(r["home_team"])
         ac = name_to_code(r["away_team"])
         is_fav  = hc in favs or ac in favs
         is_late = _ROUND_RAW.get(r["Round"], 0) >= 0.75
         return (-int(is_fav), -int(is_late), -spread)
 
-    for s in strata:
-        rng.shuffle(strata[s])      # randomize within priority tiers
-        strata[s].sort(key=_sort_key)
-
-    # ── Step 4: round-robin across strata ────────────────────────────────
-    selected: list[tuple[dict, dict[str, float]]] = []
-    seen_ids: set[str] = set()
-
-    # Guarantee at least 1 match per scorer that has candidates
-    for scorer in SCORER_NAMES:
-        if len(selected) >= n:
-            break
-        for e in strata[scorer]:
-            mid = _match_id(e[0])
-            if mid not in seen_ids:
-                seen_ids.add(mid)
-                selected.append((e[0], e[1]))
-                break
-
-    # ── Step 5: fill remaining slots from best available ─────────────────
-    # Pool all remaining by spread (most informative first), with fav bonus
     remaining = [e for e in enriched if _match_id(e[0]) not in seen_ids]
-    remaining.sort(key=_sort_key)
+    rng.shuffle(remaining)
+    remaining.sort(key=_fill_key)
 
-    for e in remaining:
+    for r, feats, vec in remaining:
         if len(selected) >= n:
             break
-        mid = _match_id(e[0])
+        mid = _match_id(r)
         if mid not in seen_ids:
             seen_ids.add(mid)
-            selected.append((e[0], e[1]))
+            selected.append((r, feats))
 
     rng.shuffle(selected)  # randomize presentation order
     return [_match_info(r, profile) for r, _ in selected]
