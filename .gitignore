@@ -76,3 +76,4 @@ embeddings/*.npy
 # Temp
 tmp/
 temp/
+static/dist/

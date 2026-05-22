@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from classifier.models import UserProfile, TimeWindow
@@ -332,9 +333,22 @@ def _score_weights() -> dict:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+_REACT_DIST = Path(__file__).parent / "static" / "dist"
+_VANILLA_HTML = Path(__file__).parent / "static" / "index.html"
+
+
 @app.get("/")
 def index():
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    # Serve React build if available, otherwise fallback to vanilla
+    react_index = _REACT_DIST / "index.html"
+    if react_index.exists():
+        return FileResponse(react_index)
+    return FileResponse(_VANILLA_HTML)
+
+
+# Serve React static assets (JS, CSS) from /assets/*
+if _REACT_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=_REACT_DIST / "assets"), name="react-assets")
 
 
 @app.get("/api/profile")

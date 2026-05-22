@@ -1,122 +1,96 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useEffect, useCallback } from 'react';
+import { useAppState, useAppDispatch } from './state/AppContext';
+import { ToastProvider, useToast } from './components/common/Toast';
+import Header from './components/layout/Header';
+import Sidebar from './components/layout/Sidebar';
+import TabBar from './components/layout/TabBar';
+import { getMatches } from './api/matches';
+import { getProfile } from './api/profile';
 
-function App() {
-  const [count, setCount] = useState(0)
+function AppInner() {
+  const { activeTab } = useAppState();
+  const dispatch = useAppDispatch();
+  const toast = useToast();
+
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [matchData, profile] = await Promise.all([
+          getMatches(),
+          getProfile(),
+        ]);
+
+        dispatch({
+          type: 'SET_MATCHES',
+          matches: matchData.matches,
+          weights: matchData.weights,
+          defaultWeights: matchData.default_weights,
+          hasLearned: matchData.has_learned,
+        });
+
+        dispatch({ type: 'SET_PROFILE', profile });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast('\u26A0 Error al cargar: ' + msg);
+      }
+    }
+
+    loadInitialData();
+  }, [dispatch, toast]);
+
+  const handleOpenProfile = useCallback(() => {
+    // TODO: open profile modal
+  }, []);
+
+  const handleSimulate = useCallback(() => {
+    // TODO: trigger simulation
+  }, []);
+
+  const handleOpenLearn = useCallback(() => {
+    // TODO: open learn modal
+  }, []);
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+      <Header
+        onOpenProfile={handleOpenProfile}
+        onSimulate={handleSimulate}
+        onOpenLearn={handleOpenLearn}
+      />
+      <div id="layout">
+        <Sidebar onOpenProfile={handleOpenProfile} />
+        <div id="main">
+          <TabBar />
+          {activeTab === 'matches' && (
+            <div id="tab-matches" className="match-list-container">
+              {/* TODO: MatchList component */}
+              <div style={{ color: 'var(--muted)', padding: '20px', fontSize: '13px' }}>
+                Match list placeholder
+              </div>
+            </div>
+          )}
+          {activeTab === 'bracket' && (
+            <div id="tab-bracket">
+              {/* TODO: BracketView component */}
+              <div style={{ color: 'var(--muted)', padding: '20px', fontSize: '13px' }}>
+                Bracket view placeholder
+              </div>
+            </div>
+          )}
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
+        {/* Detail panel placeholder */}
+        <div id="detail-panel" style={{ display: 'none' }}>
+          {/* TODO: DetailPanel component */}
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      </div>
     </>
-  )
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppInner />
+    </ToastProvider>
+  );
+}

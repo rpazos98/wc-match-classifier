@@ -6,181 +6,95 @@ import {
   type ReactNode,
 } from 'react';
 
-// ── Domain types ──────────────────────────────────────────────────────────────
+import type {
+  Match,
+  ScorerWeight,
+  Profile,
+  BracketRound,
+  GroupStanding,
+  ChampionOdds,
+} from '../types';
 
-export interface MatchPrediction {
-  p_home:   number;
-  p_draw:   number;
-  p_away:   number;
-  elo_home: number;
-  elo_away: number;
-  entropy:  number;
-}
-
-export interface Archetype {
-  icon:  string;
-  label: string;
-}
-
-export interface H2HRecord {
-  wins_home: number;
-  wins_away: number;
-  draws:     number;
-  played:    number;
-}
-
-export interface H2HMatch {
-  year:       number;
-  tournament: string;
-  home:       string;
-  away:       string;
-  home_goals: number;
-  away_goals: number;
-}
-
-export interface Star {
-  name:    string;
-  team:    string;
-  overall: number;
-}
-
-export interface Match {
-  match_id:         string;
-  home:             string;
-  away:             string;
-  stage:            string;
-  stage_label:      string;
-  kickoff_utc:      string;
-  kickoff_local:    string;
-  venue:            string;
-  score:            number;
-  label:            string;
-  emoji:            string;
-  archetype:        Archetype | null;
-  narrative:        string | null;
-  breakdown:        Record<string, number>;
-  raw_by_scorer:    Record<string, number>;
-  weight_by_scorer: Record<string, number>;
-  reason_by_scorer: Record<string, string>;
-  reasons:          string[];
-  prediction:       MatchPrediction | null;
-  intrinsic_score:  number;
-  personal_score:   number;
-  h2h:              H2HRecord | null;
-  h2h_all:          H2HRecord | null;
-  h2h_recent:       H2HMatch[] | null;
-  stars:            Star[] | null;
-  base_score:       number;
-  // Fields added by simulation
-  home_goals?:       number | null;
-  away_goals?:       number | null;
-  predicted_winner?: string | null;
-  rarity?:           number | null;
-}
-
-export interface WeightInfo {
-  max_pts: number;
-  label:   string;
-}
-
-export interface TimeWindow {
-  weekday:    number | null;
-  start_hour: number;
-  end_hour:   number;
-  timezone:   string;
-}
-
-export interface Profile {
-  name:             string;
-  team_affinities:  Record<string, number>;
-  favorite_players: string[];
-  time_windows:     TimeWindow[];
-}
-
-export interface BracketGroup {
-  group:    string;
-  teams:    { code: string; pts: number; gd: number; gf: number }[];
-}
+// ── Bracket data (simulation-specific view model) ────────────────────────────
 
 export interface BracketData {
-  groups:   BracketGroup[];
-  rounds:   Record<string, Match[]>;
+  bracket_rounds: BracketRound[];
+  standings: GroupStanding[];
+  champion_odds: ChampionOdds[];
+  n_sims: number;
   champion: string | null;
+  runner_up: string | null;
+  third_place: string | null;
 }
 
-// ── App state ─────────────────────────────────────────────────────────────────
+// ── App state ────────────────────────────────────────────────────────────────
 
-export type TabName    = 'matches' | 'bracket';
+export type TabName = 'matches' | 'bracket';
 export type FilterMode = 'all' | 'confirmed' | 'simulated';
 
 export interface AppState {
-  // Data
-  matches:        Match[];
-  matchById:      Record<string, Match>;
-  weights:        Record<string, WeightInfo>;
+  matches: Match[];
+  matchById: Record<string, Match>;
+  weights: Record<string, ScorerWeight>;
   defaultWeights: Record<string, number>;
-  hasLearned:     boolean;
+  hasLearned: boolean;
 
-  // Simulation
-  bracketData:    BracketData | null;
-  simulated:      boolean;
-  seed:           number | null;
+  bracketData: BracketData | null;
+  simulated: boolean;
+  seed: number | null;
 
-  // UI selection
-  selectedId:     string | null;
-  pinnedId:       string | null;
+  selectedId: string | null;
+  pinnedId: string | null;
 
-  // Navigation / filtering
-  activeTab:      TabName;
-  filterMode:     FilterMode;
+  activeTab: TabName;
+  filterMode: FilterMode;
 
-  // User
-  profile:        Profile | null;
+  profile: Profile | null;
 }
 
 const initialState: AppState = {
-  matches:        [],
-  matchById:      {},
-  weights:        {},
+  matches: [],
+  matchById: {},
+  weights: {},
   defaultWeights: {},
-  hasLearned:     false,
+  hasLearned: false,
 
-  bracketData:    null,
-  simulated:      false,
-  seed:           null,
+  bracketData: null,
+  simulated: false,
+  seed: null,
 
-  selectedId:     null,
-  pinnedId:       null,
+  selectedId: null,
+  pinnedId: null,
 
-  activeTab:      'matches',
-  filterMode:     'all',
+  activeTab: 'matches',
+  filterMode: 'all',
 
-  profile:        null,
+  profile: null,
 };
 
-// ── Actions ───────────────────────────────────────────────────────────────────
+// ── Actions ──────────────────────────────────────────────────────────────────
 
 type Action =
   | {
       type: 'SET_MATCHES';
-      matches:        Match[];
-      weights:        Record<string, WeightInfo>;
+      matches: Match[];
+      weights: Record<string, ScorerWeight>;
       defaultWeights: Record<string, number>;
-      hasLearned:     boolean;
+      hasLearned: boolean;
     }
-  | { type: 'SET_BRACKET';   bracketData: BracketData; seed: number }
+  | { type: 'SET_BRACKET'; bracketData: BracketData; seed: number; matches: Match[]; weights: Record<string, ScorerWeight> }
   | { type: 'CLEAR_BRACKET' }
-  | { type: 'SELECT_MATCH';  id: string | null }
-  | { type: 'PIN_MATCH';     id: string | null }
-  | { type: 'SET_TAB';       tab: TabName }
-  | { type: 'SET_FILTER';    mode: FilterMode }
-  | { type: 'SET_PROFILE';   profile: Profile }
-  | { type: 'UPDATE_MATCH';  match: Match }
-  | { type: 'SET_LEARNED';   hasLearned: boolean };
+  | { type: 'SELECT_MATCH'; id: string | null }
+  | { type: 'PIN_MATCH'; id: string | null }
+  | { type: 'SET_TAB'; tab: TabName }
+  | { type: 'SET_FILTER'; mode: FilterMode }
+  | { type: 'SET_PROFILE'; profile: Profile }
+  | { type: 'UPDATE_MATCH'; match: Match }
+  | { type: 'SET_LEARNED'; hasLearned: boolean };
 
 export type AppAction = Action;
 
-// ── Reducer ───────────────────────────────────────────────────────────────────
+// ── Reducer ──────────────────────────────────────────────────────────────────
 
 function buildMatchById(matches: Match[]): Record<string, Match> {
   const map: Record<string, Match> = {};
@@ -195,10 +109,10 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         matches,
-        matchById:      buildMatchById(matches),
-        weights:        action.weights,
+        matchById: buildMatchById(matches),
+        weights: action.weights,
         defaultWeights: action.defaultWeights,
-        hasLearned:     action.hasLearned,
+        hasLearned: action.hasLearned,
       };
     }
 
@@ -206,16 +120,19 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         bracketData: action.bracketData,
-        simulated:   true,
-        seed:        action.seed,
+        simulated: true,
+        seed: action.seed,
+        matches: action.matches,
+        matchById: buildMatchById(action.matches),
+        weights: action.weights,
       };
 
     case 'CLEAR_BRACKET':
       return {
         ...state,
         bracketData: null,
-        simulated:   false,
-        seed:        null,
+        simulated: false,
+        seed: null,
       };
 
     case 'SELECT_MATCH':
@@ -256,9 +173,9 @@ function reducer(state: AppState, action: Action): AppState {
   }
 }
 
-// ── Context ───────────────────────────────────────────────────────────────────
+// ── Context ──────────────────────────────────────────────────────────────────
 
-const AppStateContext    = createContext<AppState>(initialState);
+const AppStateContext = createContext<AppState>(initialState);
 const AppDispatchContext = createContext<Dispatch<Action>>(() => {
   throw new Error('AppDispatchContext used outside provider');
 });
@@ -275,12 +192,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Read the full app state. */
 export function useAppState(): AppState {
   return useContext(AppStateContext);
 }
 
-/** Get the dispatch function for app actions. */
 export function useAppDispatch(): Dispatch<Action> {
   return useContext(AppDispatchContext);
 }

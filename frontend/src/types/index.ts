@@ -37,8 +37,8 @@ export interface Match {
   score: number;
   label: string;
   emoji: string;
-  archetype: Archetype;
-  narrative: string;
+  archetype: Archetype | null;
+  narrative: string | null;
   breakdown: Record<string, number>;
   raw_by_scorer: Record<string, number>;
   weight_by_scorer: Record<string, number>;
@@ -52,6 +52,13 @@ export interface Match {
   h2h_recent: H2HRecentMatch[] | null;
   stars: Star[] | null;
   base_score: number;
+  // Simulation-only fields (present after simulate)
+  home_goals?: number | null;
+  away_goals?: number | null;
+  predicted_winner?: string | null;
+  rarity?: number | null;
+  home_path?: Record<string, number> | null;
+  away_path?: Record<string, number> | null;
 }
 
 export interface ScorerWeight {
@@ -70,14 +77,8 @@ export interface MatchesResponse {
 
 // ── Simulation types ─────────────────────────────────────────────────────────
 
-export interface SimMatch extends Match {
-  home_goals?: number | null;
-  away_goals?: number | null;
-  predicted_winner?: string;
-  rarity?: number | null;
-  home_path?: Record<string, number> | null;
-  away_path?: Record<string, number> | null;
-}
+/** @deprecated Use Match directly — simulation fields are optional on Match */
+export type SimMatch = Match;
 
 export interface BracketMatch {
   match_num: number;
