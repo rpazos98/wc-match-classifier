@@ -51,6 +51,7 @@ class MonteCarloResult:
     match_winner_counts:     dict[int, dict[str, int]]   # match_num → team → wins
     match_participant_counts: dict[int, dict[str, int]]  # match_num → team → appearances
     representative:          SimulationResult             # most-aligned single run
+    match_avg_goals:         dict[int, tuple[float, float]] | None = None  # match_num → (avg_home, avg_away)
 
 # ── Real bracket definitions ───────────────────────────────────────────────────
 
@@ -347,6 +348,9 @@ def run_monte_carlo(
 
     # Store lightweight per-run KO winners for representative selection
     run_ko_winners: list[tuple[int, dict[int, str]]] = []   # (seed, {match_num: winner})
+    # Accumulate goals per match for averaging
+    goal_sums: dict[int, list[float]] = defaultdict(lambda: [0.0, 0.0])  # mn → [home_total, away_total]
+    goal_counts: dict[int, int] = defaultdict(int)
 
     for s in seeds:
         result = simulate_bracket(matches, seed=s)
@@ -365,6 +369,13 @@ def run_monte_carlo(
                 match_participant_counts[mn][m.away] += 1
                 if mn in result.match_winners:
                     ko_winners[mn] = result.match_winners[mn]
+            # Accumulate goals for all matches
+            mn = int(m.match_id[1:])
+            if mn in result.match_scores:
+                hg, ag = result.match_scores[mn]
+                goal_sums[mn][0] += hg
+                goal_sums[mn][1] += ag
+                goal_counts[mn] += 1
         run_ko_winners.append((s, ko_winners))
 
     # Modal winner per KO match — the most frequent winner across all sims
@@ -415,6 +426,13 @@ def run_monte_carlo(
     best_seed = max(champion_runs, key=lambda x: _score(x[1]))[0]
     representative = simulate_bracket(matches, seed=best_seed)
 
+    # Compute average goals per match
+    match_avg_goals: dict[int, tuple[float, float]] = {}
+    for mn, sums in goal_sums.items():
+        cnt = goal_counts[mn]
+        if cnt > 0:
+            match_avg_goals[mn] = (sums[0] / cnt, sums[1] / cnt)
+
     return MonteCarloResult(
         n_sims                   = n,
         champion_counts          = dict(champion_counts),
@@ -423,6 +441,7 @@ def run_monte_carlo(
         match_winner_counts      = _mwc,
         match_participant_counts = {mn: dict(t) for mn, t in match_participant_counts.items()},
         representative           = representative,
+        match_avg_goals          = match_avg_goals,
     )
 
 

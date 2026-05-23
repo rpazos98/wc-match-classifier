@@ -1,14 +1,16 @@
 import { useAppState } from '../../state/AppContext';
 import { scoreColor, barColor } from '../../utils/labels';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface ContribRow {
   name: string;
   label: string;
+  desc: string;
   pts: number;
   raw: number;
   weight: number;
   reason: string;
+  detail: string;
 }
 
 interface ContributionListProps {
@@ -16,6 +18,7 @@ interface ContributionListProps {
   rawByScorer: Record<string, number>;
   weightByScorer: Record<string, number>;
   reasonByScorer: Record<string, string>;
+  detailByScorer?: Record<string, string>;
   score: number;
 }
 
@@ -27,19 +30,19 @@ const QUALITY_SCORERS = new Set([
 
 const CONTEXT_SCORERS = new Set([
   'Match Stage',
-  'Upset Potential',
   'Narrative',
   'Star Power',
 ]);
 
 const PERSONAL_SCORERS = new Set([
   'Favorite Team',
-  'Favorite Player',
   'Same Group',
+  'Momento',
 ]);
 
 function ContribRowItem({ r, cls }: { r: ContribRow; cls: string }) {
   const barRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const rawPct = Math.round(r.raw * 100);
   const wPct = Math.round(r.weight * 100);
@@ -53,9 +56,9 @@ function ContribRowItem({ r, cls }: { r: ContribRow; cls: string }) {
       : 'var(--muted)';
   const ptsStr = r.pts > 0.05 ? r.pts.toFixed(1) : '0.0';
   const bc = barColor(r.raw);
+  const hasDetail = !!(r.detail || r.reason);
 
   useEffect(() => {
-    // Animate bar width on mount
     requestAnimationFrame(() => {
       if (barRef.current) {
         barRef.current.style.width = `${rawPct}%`;
@@ -64,12 +67,22 @@ function ContribRowItem({ r, cls }: { r: ContribRow; cls: string }) {
   }, [rawPct]);
 
   return (
-    <div className={`scorer-block ${cls}`}>
-      <div className="contrib-top">
+    <div className={`scorer-block ${cls}${expanded ? ' scorer-expanded' : ''}`}>
+      <div
+        className={`contrib-top${hasDetail ? ' contrib-clickable' : ''}`}
+        onClick={() => hasDetail && setExpanded(!expanded)}
+      >
         <span className="contrib-sign" style={{ color: signCol }}>
           {sign}
         </span>
-        <span className="sc-name">{r.label}</span>
+        <span className="sc-name" title={r.desc}>
+          {r.label}
+          {hasDetail && (
+            <span className="sc-expand-icon">
+              {expanded ? '\u25BC' : '\u25B6'}
+            </span>
+          )}
+        </span>
         <span className="contrib-pts" style={{ color: signCol }}>
           {sign === '\u2212' ? '' : '+'}
           {ptsStr}
@@ -87,8 +100,13 @@ function ContribRowItem({ r, cls }: { r: ContribRow; cls: string }) {
           />
         </div>
       </div>
-      {r.reason && r.pts > 0.5 && (
-        <div className="sc-reason">{r.reason}</div>
+      {expanded && (
+        <div className="sc-detail">
+          {r.reason && <div className="sc-detail-reason">{r.reason}</div>}
+          {r.detail && (
+            <pre className="sc-detail-calc">{r.detail}</pre>
+          )}
+        </div>
       )}
     </div>
   );
@@ -99,6 +117,7 @@ export default function ContributionList({
   rawByScorer,
   weightByScorer,
   reasonByScorer,
+  detailByScorer,
   score,
 }: ContributionListProps) {
   const { weights } = useAppState();
@@ -108,11 +127,13 @@ export default function ContributionList({
     ([name, pts]) => ({
       name,
       label: weights[name]?.label || name,
+      desc: weights[name]?.desc || '',
       pts,
       raw: rawByScorer?.[name] ?? 0,
       weight:
         weightByScorer?.[name] ?? ((weights[name]?.max_pts ?? 0) / 100),
       reason: reasonByScorer?.[name] || '',
+      detail: detailByScorer?.[name] || '',
     }),
   );
 
@@ -132,7 +153,6 @@ export default function ContributionList({
     (r) => r.pts > 0.05 && r.weight >= 0.005,
   );
 
-  // "What holds it back" low-scoring items
   const lowScorers = allRows
     .filter((r) => r.raw < 0.15 && r.weight > 0.03)
     .sort((a, b) => a.raw - b.raw);

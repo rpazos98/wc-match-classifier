@@ -43,6 +43,7 @@ export interface Match {
   raw_by_scorer: Record<string, number>;
   weight_by_scorer: Record<string, number>;
   reason_by_scorer: Record<string, string>;
+  detail_by_scorer?: Record<string, string>;
   reasons: Record<string, string>;
   prediction: Prediction | null;
   intrinsic_score: number;
@@ -64,6 +65,7 @@ export interface Match {
 export interface ScorerWeight {
   max_pts: number;
   label: string;
+  desc?: string;
 }
 
 // ── API response: GET /api/matches ───────────────────────────────────────────
@@ -149,7 +151,6 @@ export interface TimeWindow {
 export interface Profile {
   name: string;
   team_affinities: Record<string, number>;
-  favorite_players: string[];
   time_windows: TimeWindow[];
 }
 
@@ -157,7 +158,6 @@ export interface ProfileInput {
   name: string;
   team_affinities: Record<string, number>;
   favorite_teams?: string[];
-  favorite_players: string[];
   time_windows: TimeWindow[];
 }
 

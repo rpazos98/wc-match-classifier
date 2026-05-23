@@ -8,7 +8,8 @@ import MatchList from './components/matches/MatchList';
 import DetailPanel from './components/detail/DetailPanel';
 import BracketView from './components/bracket/BracketView';
 import LearnModal from './components/learn/LearnModal';
-import ProfileWizard from './components/profile/ProfileWizard';
+import ProfileEditModal from './components/profile/ProfileEditModal';
+import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
 import { simulate } from './api/matches';
@@ -19,8 +20,9 @@ function AppInner() {
   const dispatch = useAppDispatch();
   const toast = useToast();
 
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [learnOpen, setLearnOpen] = useState(false);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
   // SWR: auto-fetch + cache matches and profile
   const { matchData, error: matchError, refresh: refreshMatches } = useMatches();
@@ -46,6 +48,25 @@ function AppInner() {
     }
   }, [profile, dispatch]);
 
+  // Auto-open teams editor on first visit (no teams configured)
+  useEffect(() => {
+    if (
+      profile &&
+      !hasAutoOpened &&
+      Object.keys(profile.team_affinities ?? {}).length === 0
+    ) {
+      setEditSection('teams');
+      setHasAutoOpened(true);
+    }
+  }, [profile, hasAutoOpened]);
+
+  // Auto-select top match when matches first load and nothing is selected
+  useEffect(() => {
+    if (state.matches.length > 0 && !state.selectedId) {
+      dispatch({ type: 'SELECT_MATCH', id: state.matches[0].match_id });
+    }
+  }, [state.matches, state.selectedId, dispatch]);
+
   useEffect(() => {
     if (matchError || profileError) {
       const msg = (matchError || profileError)?.message ?? 'Error desconocido';
@@ -58,7 +79,6 @@ function AppInner() {
     try {
       dispatch({ type: 'SET_SIMULATING' });
       const data = await simulate();
-      // Find actual winners from the representative bracket
       const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
       const finalMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 104);
       const thirdMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 103);
@@ -81,7 +101,7 @@ function AppInner() {
       dispatch({ type: 'SET_TAB', tab: 'bracket' });
       toast(`Simulacion completa (semilla ${data.seed})`);
     } catch (err) {
-      dispatch({ type: 'CLEAR_BRACKET' }); // resets simulating
+      dispatch({ type: 'CLEAR_BRACKET' });
       const msg = err instanceof Error ? err.message : String(err);
       toast('\u26A0 Error al simular: ' + msg);
     }
@@ -89,25 +109,23 @@ function AppInner() {
 
   const handleLearnClose = useCallback(() => {
     setLearnOpen(false);
-    // Refresh matches after learning (weights may have changed)
     refreshMatches();
   }, [refreshMatches]);
 
-  const handleProfileClose = useCallback(() => {
-    setProfileOpen(false);
-    // Refresh matches after profile change (scores recalculated)
+  const handleEditClose = useCallback(() => {
+    setEditSection(null);
     refreshMatches();
   }, [refreshMatches]);
 
   return (
     <>
       <Header
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={() => setEditSection('teams')}
         onSimulate={handleSimulate}
         onOpenLearn={() => setLearnOpen(true)}
       />
       <div id="layout">
-        <Sidebar onOpenProfile={() => setProfileOpen(true)} />
+        <Sidebar onEditSection={setEditSection} />
         <div id="main">
           <TabBar />
           {activeTab === 'matches' && (
@@ -124,10 +142,12 @@ function AppInner() {
         <DetailPanel />
       </div>
 
-      <ProfileWizard
-        isOpen={profileOpen}
-        onClose={handleProfileClose}
-      />
+      {editSection && (
+        <ProfileEditModal
+          section={editSection}
+          onClose={handleEditClose}
+        />
+      )}
       <LearnModal
         isOpen={learnOpen}
         onClose={handleLearnClose}

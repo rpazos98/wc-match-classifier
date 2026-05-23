@@ -219,7 +219,14 @@ export default function DetailPanel() {
     return (
       <aside id="detail">
         <div id="detail-empty">
-          <p>Selecciona un partido para ver el detalle</p>
+          <div className="big-icon">&#9917;</div>
+          <p style={{ fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
+            Selecciona un partido
+          </p>
+          <p>
+            Haz click en cualquier partido de la lista para ver su puntaje,
+            probabilidades y desglose completo.
+          </p>
         </div>
       </aside>
     );
@@ -389,6 +396,7 @@ export default function DetailPanel() {
             rawByScorer={m.raw_by_scorer}
             weightByScorer={m.weight_by_scorer}
             reasonByScorer={m.reason_by_scorer}
+            detailByScorer={m.detail_by_scorer}
             score={m.score}
           />
         </Disclosure>

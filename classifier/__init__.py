@@ -1,11 +1,9 @@
 from .models import UserProfile, Match, Squad, Stage, TimeWindow, ScoringResult
 from .scoring import ScoringEngine
 from .scoring.favorite_team import FavoriteTeamScorer
-from .scoring.favorite_player import FavoritePlayerScorer
 from .scoring.match_stage import MatchStageScorer
 from .scoring.competitive_tension import CompetitiveTensionScorer
 from .scoring.chaos_potential import ChaosPotentialScorer
-from .scoring.upset_potential import UpsetPotentialScorer
 from .scoring.narrative import NarrativeScorer
 from .scoring.form import FormScorer
 from .scoring.star_power import StarPowerScorer
@@ -20,17 +18,15 @@ def build_default_engine() -> ScoringEngine:
     # Its 0.10 redistributed: +0.03 Stage, +0.02 Tension,
     # +0.02 Chaos, +0.01 FavTeam, +0.01 Form, +0.01 Upset.
     #
-    # Sum = 0.19+0.18+0.18+0.14+0.07+0.06+0.06+0.05+0.04+0.03 = 1.00
+    # Sum = 0.19+0.21+0.17+0.14+0.12+0.08+0.06+0.03 = 1.00
     return ScoringEngine([
         FavoriteTeamScorer(),           # 0.19
-        MatchStageScorer(),             # 0.18
-        CompetitiveTensionScorer(),     # 0.18
-        ChaosPotentialScorer(),         # 0.14
-        FavoritePlayerScorer(),         # 0.07
-        UpsetPotentialScorer(),         # 0.06
-        FormScorer(),                   # 0.06  (was 0.08 → trimmed for headroom)
-        StarPowerScorer(),              # 0.05
-        NarrativeScorer(),              # 0.04
+        CompetitiveTensionScorer(),     # 0.21
+        MatchStageScorer(),             # 0.17
+        StarPowerScorer(),              # 0.14
+        ChaosPotentialScorer(),         # 0.12
+        FormScorer(),                   # 0.08
+        NarrativeScorer(),              # 0.06
         SameGroupScorer(),              # 0.03
     ])
 
@@ -46,7 +42,7 @@ def apply_learned_weights(engine: ScoringEngine, weights: dict[str, float]) -> N
 def classify_matches(
     matches: list[Match],
     profile: UserProfile,
-    predicted_scores: dict[str, tuple[int, int]] | None = None,
+    predicted_scores: dict[str, tuple[float, float]] | None = None,
     learned_weights: dict[str, float] | None = None,
 ) -> list[Classification]:
     engine = build_default_engine()

@@ -27,7 +27,6 @@ class TimeWindow:
 class UserProfile:
     name:             str
     team_affinities:  dict[str, float]  # ISO code → 0.0–1.0 (S=1.0, A=0.65, B=0.3)
-    favorite_players: list[str]          # player names
     time_windows:     list[TimeWindow]
     language:         str = "es"
     region:           str = "MX"
@@ -60,5 +59,6 @@ class ScoringResult:
     reason_by_scorer:  dict[str, str]     # scorer_name -> reason string
     raw_by_scorer:     dict[str, float]   # scorer_name -> raw 0.0–1.0
     weight_by_scorer:  dict[str, float]   # scorer_name -> weight used
+    detail_by_scorer:  dict[str, str] | None = None  # scorer_name -> calc explanation
     prediction:        dict | None = None # {p_home, p_draw, p_away, elo_home, elo_away, entropy}
     label:             str = ""           # set after classification

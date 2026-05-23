@@ -18,8 +18,6 @@ export default function MatchRow({ match: m }: Props) {
   const archIcon = m.archetype?.icon || m.emoji;
   const archTag = m.archetype?.label || null;
 
-  const isSimMatch =
-    (m.reason_by_scorer?.['Favorite Player'] || '').includes('estilo similar');
   const isKoSim = simulated && m.stage !== 'group';
   const showRare = m.rarity != null && m.rarity <= 0.1;
 
@@ -57,11 +55,6 @@ export default function MatchRow({ match: m }: Props) {
         {fl(m.home)} {m.home} vs {m.away} {fl(m.away)}
       </span>
       {archTag && <span className="mr-arch">{archTag}</span>}
-      {isSimMatch && (
-        <span className="sim-badge" title="Jugador de estilo similar">
-          ~
-        </span>
-      )}
       {isKoSim && (
         <span className="ko-sim-badge" title="Equipos por simulaci\u00f3n">
           sim

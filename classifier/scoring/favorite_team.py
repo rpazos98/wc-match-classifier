@@ -33,13 +33,35 @@ class FavoriteTeamScorer(BaseScorer):
         if aff_home == 0.0 and aff_away == 0.0:
             return 0.0, ""
 
-        score = max(aff_home, aff_away)
+        hi = max(aff_home, aff_away)
+        lo = min(aff_home, aff_away)
 
-        # Build reason from the higher-affinity team(s)
+        # Both teams matter: the secondary adds up to 30% boost
+        # ARG(S) vs BRA(A) = 1.0 + 0.3*0.65 = 1.195 → capped 1.0
+        # ARG(S) vs nadie  = 1.0 + 0          = 1.0
+        # MEX(A) vs CAN(B) = 0.65 + 0.3*0.30 = 0.74
+        # MEX(A) vs nadie  = 0.65 + 0          = 0.65
+        score = min(1.0, hi + 0.3 * lo)
+
         parts = []
         for code, aff in ((home, aff_home), (away, aff_away)):
             if aff > 0:
                 parts.append(f"{code} ({_affinity_label(aff)})")
         reason = " vs ".join(parts) if len(parts) == 2 else f"{parts[0]} está jugando"
 
+        self._last = (aff_home, aff_away, hi, lo)
         return score, reason
+
+    def detail(self, ctx: ScoringContext, raw: float) -> str:
+        if not hasattr(self, '_last'):
+            return ""
+        aff_home, aff_away, hi, lo = self._last
+        home = ctx.match.home
+        away = ctx.match.away
+        return (
+            f"{home}: afinidad = {aff_home:.2f}\n"
+            f"{away}: afinidad = {aff_away:.2f}\n"
+            f"Fórmula: min(1.0, mayor + 0.3 × menor)\n"
+            f"= min(1.0, {hi:.2f} + 0.3 × {lo:.2f}) = {raw:.2f}\n"
+            f"Escala: S=1.0, A=0.65, B=0.30, sin interés=0"
+        )

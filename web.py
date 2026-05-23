@@ -51,11 +51,7 @@ _STATE_FILE = Path(__file__).parent / "data" / "user_state.json"
 _DEFAULT_PROFILE_DATA = {
     "name":             "Fan Demo",
     "team_affinities":  {"ARG": 1.0, "MEX": 1.0},
-    "favorite_players": ["Messi", "Lozano", "De Paul"],
-    "time_windows": [
-        {"weekday": 5, "start_hour": 14, "end_hour": 23, "timezone": "America/Mexico_City"},
-        {"weekday": 6, "start_hour": 11, "end_hour": 23, "timezone": "America/Mexico_City"},
-    ],
+    "time_windows": [],
 }
 
 
@@ -76,7 +72,6 @@ def _build_profile(data: dict) -> UserProfile:
     return UserProfile(
         name=data.get("name", "Fan Demo"),
         team_affinities={t.upper(): float(v) for t, v in (affinities or {}).items()},
-        favorite_players=data.get("favorite_players", []),
         time_windows=windows,
     )
 
@@ -101,7 +96,6 @@ def _save_state() -> None:
         "profile": {
             "name":             _profile.name,
             "team_affinities":  _profile.team_affinities,
-            "favorite_players": _profile.favorite_players,
             "time_windows": [
                 {"weekday": w.weekday, "start_hour": w.start_hour,
                  "end_hour": w.end_hour, "timezone": str(w.timezone)}
@@ -133,13 +127,24 @@ _SCORER_LABELS: dict[str, str] = {
     "Favorite Team":       "Equipo fav.",
     "Match Stage":         "Fase",
     "Competitive Tension": "Tensión",
-    "Favorite Player":   "Jugador fav.",
     "Chaos Potential":   "Caos",
-    "Upset Potential":   "Sorpresa",
     "Narrative":         "Historia",
     "Same Group":        "Mismo grupo",
     "Form":              "Forma",
     "Star Power":        "Estrellas",
+    "Momento":           "Momento",
+}
+
+_SCORER_DESCS: dict[str, str] = {
+    "Favorite Team":       "Qué tanto te importa este equipo",
+    "Match Stage":         "Importancia de la ronda (grupo, octavos, final...)",
+    "Competitive Tension": "Qué tan parejo es el partido según probabilidades",
+    "Chaos Potential":     "Probabilidad de partido abierto y con muchos goles",
+    "Narrative":           "Rivalidades históricas y contexto entre selecciones",
+    "Same Group":          "Partido entre equipos del mismo grupo",
+    "Form":                "Momento actual de los equipos (racha reciente)",
+    "Star Power":          "Nivel de las figuras en cancha",
+    "Momento":             "Bonus por tu equipo en un partido de alta importancia",
 }
 
 
@@ -149,7 +154,7 @@ def _tz() -> ZoneInfo:
     return _profile.time_windows[0].timezone if _profile.time_windows else ZoneInfo("UTC")
 
 
-_PERSONAL_SCORERS = {"Favorite Team", "Favorite Player", "Same Group"}
+_PERSONAL_SCORERS = {"Favorite Team", "Same Group", "Momento"}
 
 # ── Match archetype + narrative ───────────────────────────────────────────────
 
@@ -297,6 +302,7 @@ def _serialize_match(c, tz: ZoneInfo) -> dict:
         "raw_by_scorer":    {k: round(v, 4) for k, v in raw.items()},
         "weight_by_scorer": {k: round(v, 4) for k, v in c.result.weight_by_scorer.items()},
         "reason_by_scorer": c.result.reason_by_scorer,
+        "detail_by_scorer": c.result.detail_by_scorer or {},
         "reasons":          c.result.reasons,
         "prediction":       pred,
         "intrinsic_score":  intrinsic,
@@ -326,6 +332,7 @@ def _score_weights() -> dict:
         s.name: {
             "max_pts": round(s.weight * 100, 1),
             "label":   _SCORER_LABELS.get(s.name, s.name),
+            "desc":    _SCORER_DESCS.get(s.name, ""),
         }
         for s in engine.scorers
     }
@@ -356,7 +363,6 @@ def get_profile():
     return {
         "name":             _profile.name,
         "team_affinities":  _profile.team_affinities,
-        "favorite_players": _profile.favorite_players,
         "time_windows": [
             {"weekday": w.weekday, "start_hour": w.start_hour,
              "end_hour": w.end_hour, "timezone": str(w.timezone)}
@@ -390,8 +396,7 @@ class _ProfileIn(BaseModel):
     name:             str
     team_affinities:  dict[str, float] = {}
     favorite_teams:   list[str] = []    # legacy field — migrated on read
-    favorite_players: list[str]
-    time_windows:     list[_TimeWindowIn]
+    time_windows:     list[_TimeWindowIn] = []
 
 
 @app.put("/api/profile")
@@ -411,7 +416,6 @@ def update_profile(req: _ProfileIn):
     _profile = UserProfile(
         name=req.name,
         team_affinities={t.upper(): float(v) for t, v in affinities.items()},
-        favorite_players=req.favorite_players,
         time_windows=windows,
     )
     _save_state()
@@ -538,16 +542,25 @@ def simulate(req: _SimIn = _SimIn()):
         matchup_rarity[mn] = round(min(h_pct, a_pct), 3)
 
     # ── Unified match list ─────────────────────────────────────────────────────
+    # Representative scores for display
     predicted_scores: dict[str, tuple[int, int]] = {
         f"M{mn:03d}": (hg, ag)
         for mn, (hg, ag) in sim.match_scores.items()
     }
+    # Average goals across all sims for scoring (smoother than single-run noise)
+    avg_goals_for_scoring: dict[str, tuple[float, float]] | None = None
+    if mc.match_avg_goals:
+        avg_goals_for_scoring = {
+            f"M{mn:03d}": (hg, ag)
+            for mn, (hg, ag) in mc.match_avg_goals.items()
+        }
 
     all_sim_matches = sorted(
         list(confirmed) + list(ko_by_num.values()),
         key=lambda m: m.match_id,
     )
-    classed = classify_matches(all_sim_matches, _profile, predicted_scores,
+    classed = classify_matches(all_sim_matches, _profile,
+                               avg_goals_for_scoring or predicted_scores,
                                learned_weights=_learned_weights)
 
     def _sim_entry(c) -> dict:
@@ -678,12 +691,6 @@ def get_teams():
     return load_teams()
 
 
-@app.get("/api/players/{team_code}")
-def get_players(team_code: str):
-    from db.query import players_by_team
-    return players_by_team().get(team_code.upper(), [])
-
-
 # ── LLM integration ───────────────────────────────────────────────────────────
 
 from classifier.llm import LMStudioClient as _LMStudioClient
@@ -727,7 +734,6 @@ async def llm_classify(req: _LLMClassifyIn = _LLMClassifyIn()):
     profile_data = {
         "name":             _profile.name,
         "team_affinities":  _profile.team_affinities,
-        "favorite_players": _profile.favorite_players,
     }
 
     try:
@@ -791,7 +797,6 @@ async def llm_explain(match_id: str):
     profile_data = {
         "name":             _profile.name,
         "team_affinities":  _profile.team_affinities,
-        "favorite_players": _profile.favorite_players,
     }
 
     try:
@@ -806,55 +811,3 @@ async def llm_explain(match_id: str):
     return {"match_id": match_id, "explanation": explanation}
 
 
-@app.get("/api/similar-players")
-def get_similar_players():
-    """
-    For each fav player in the current profile, return WC-squad players
-    with a similar style (by embedding cosine similarity).
-
-    Response: { fav_player_name: [{name, sim, team}], ... }
-    """
-    try:
-        from classifier.embeddings import get_index
-        from db.query import _load_squads, _connect
-    except Exception:
-        return {}
-
-    idx = get_index()
-    con = _connect()
-    squads = _load_squads(con)
-    con.close()
-
-    # Build: player_name → team_code
-    player_to_team: dict[str, str] = {
-        p: squad.team_code
-        for squad in squads.values()
-        for p in squad.players
-    }
-    all_wc_players = set(player_to_team)
-
-    def _resolve(fav: str) -> str | None:
-        """Resolve partial fav name (e.g. 'Messi') → index name (e.g. 'L. Messi')."""
-        if fav in idx:
-            return fav
-        fav_lower = fav.lower()
-        for name in idx._names:
-            if fav_lower in name.lower():
-                return name
-        return None
-
-    result: dict[str, list[dict]] = {}
-    for fav in _profile.favorite_players:
-        resolved = _resolve(fav)
-        if not resolved:
-            continue
-        candidates = idx.similar_to(resolved, top_k=60, min_sim=0.88)
-        in_wc = [
-            {"name": name, "sim": round(sim, 3), "team": player_to_team[name]}
-            for name, sim in candidates
-            if name in all_wc_players
-        ]
-        if in_wc:
-            result[fav] = in_wc[:6]
-
-    return result

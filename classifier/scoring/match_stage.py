@@ -34,7 +34,7 @@ def _matchdays() -> dict[int, int]:
 
 class MatchStageScorer(BaseScorer):
     name   = "Match Stage"
-    weight = 0.18
+    weight = 0.17
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         stage = ctx.match.stage
@@ -43,8 +43,33 @@ class MatchStageScorer(BaseScorer):
             mn  = int(ctx.match.match_id[1:])
             md  = _matchdays().get(mn, 2)
             raw = _GROUP_MD_SCORES[md]
+
+            # J3 dynamic: competitive matches matter more (both teams need a result)
+            if md == 3 and ctx.prediction:
+                entropy = ctx.prediction.entropy
+                # entropy=1.0 → boost to 0.54, entropy=0.5 → stays 0.42, entropy=0.2 → drops to 0.37
+                raw *= (0.8 + 0.4 * entropy)
+
             return raw, _MD_LABELS[md]
 
         raw   = _STAGE_SCORES[stage]
         label = _STAGE_LABELS[stage]
         return raw, label
+
+    def detail(self, ctx: ScoringContext, raw: float) -> str:
+        stage = ctx.match.stage
+        label = _STAGE_LABELS.get(stage, stage.value)
+        scores = {
+            "Grupo J1": 0.20, "Grupo J2": 0.28, "Grupo J3": "0.42 × competitividad",
+            "R32": 0.40, "R16": 0.55, "QF": 0.75,
+            "SF": 0.90, "3er puesto": 0.60, "Final": 1.00,
+        }
+        table = " | ".join(f"{k}={v}" for k, v in scores.items())
+        lines = f"Etapa: {label} → raw = {raw:.2f}\nEscala: {table}"
+        if stage == Stage.GROUP:
+            mn = int(ctx.match.match_id[1:])
+            md = _matchdays().get(mn, 2)
+            if md == 3 and ctx.prediction:
+                e = ctx.prediction.entropy
+                lines += f"\nJ3 dinámico: entropía = {e:.2f} → factor = {0.8 + 0.4*e:.2f}"
+        return lines

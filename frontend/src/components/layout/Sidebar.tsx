@@ -1,13 +1,14 @@
 import { useAppState } from '../../state/AppContext';
 import { fl } from '../../utils/flags';
+import type { EditSection } from '../profile/ProfileEditModal';
 
 interface SidebarProps {
-  onOpenProfile: () => void;
+  onEditSection: (section: EditSection) => void;
 }
 
 type TierKey = 'S' | 'A' | 'B';
 
-export default function Sidebar({ onOpenProfile }: SidebarProps) {
+export default function Sidebar({ onEditSection }: SidebarProps) {
   const { profile, weights, defaultWeights, hasLearned } = useAppState();
 
   if (!profile) {
@@ -22,6 +23,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
 
   const affinities = profile.team_affinities ?? {};
   const tierEntries = Object.entries(affinities).sort((a, b) => b[1] - a[1]);
+  const hasTeams = tierEntries.length > 0;
 
   const tierGroups: Record<TierKey, string[]> = { S: [], A: [], B: [] };
   for (const [team, value] of tierEntries) {
@@ -30,21 +32,43 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
     else tierGroups.B.push(team);
   }
 
-  const DAYS = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
-
   const wEntries = Object.entries(weights);
   const maxW = wEntries.length > 0
     ? Math.max(...wEntries.map(([, w]) => w.max_pts))
     : 0;
 
   return (
-    <aside id="sidebar" onClick={onOpenProfile} style={{ cursor: 'pointer' }}>
+    <aside id="sidebar">
       <div id="profile-sidebar">
-        <div className="profile-name">{'\u{1F464}'} {profile.name}</div>
+        <div
+          className="profile-name sidebar-editable"
+          onClick={() => onEditSection('name')}
+        >
+          {'\u{1F464}'} {profile.name}
+          <span className="sidebar-edit-hint">&#9998;</span>
+        </div>
 
-        {tierEntries.length > 0 && (
-          <>
-            <div className="sidebar-label">Equipos</div>
+        {!hasTeams && (
+          <div
+            className="sidebar-cta"
+            onClick={() => onEditSection('teams')}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="sidebar-cta-icon">&#9881;</div>
+            <p>Configura tus equipos para personalizar los puntajes</p>
+            <span className="sidebar-cta-link">Click para comenzar</span>
+          </div>
+        )}
+
+        <div
+          className="sidebar-section sidebar-editable"
+          onClick={() => onEditSection('teams')}
+        >
+          <div className="sidebar-label">
+            Equipos
+            <span className="sidebar-edit-hint">&#9998;</span>
+          </div>
+          {tierEntries.length > 0 && (
             <div>
               {(['S', 'A', 'B'] as TierKey[]).map((tier) =>
                 tierGroups[tier].map((team) => (
@@ -57,52 +81,8 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
                 )),
               )}
             </div>
-          </>
-        )}
-
-        {profile.favorite_players.length > 0 && (
-          <>
-            <div className="sidebar-label">Jugadores</div>
-            {profile.favorite_players.slice(0, 8).map((player) => (
-              <div className="player-item" key={player}>
-                {'· '}{player}
-              </div>
-            ))}
-            {profile.favorite_players.length > 8 && (
-              <div className="player-item" style={{ color: 'var(--muted)' }}>
-                {'...+'}{profile.favorite_players.length - 8}{' mas'}
-              </div>
-            )}
-          </>
-        )}
-
-        {profile.time_windows.length > 0 && (
-          <>
-            <div className="sidebar-label">Disponibilidad</div>
-            {profile.time_windows.map((w, i) => {
-              const day =
-                w.weekday !== null && w.weekday !== undefined
-                  ? DAYS[w.weekday]
-                  : 'Todos';
-              const tz = w.timezone.split('/').pop()?.replace(/_/g, ' ') ?? '';
-              return (
-                <div key={i}>
-                  <div className="avail-item">
-                    {day} {String(w.start_hour).padStart(2, '0')}
-                    {'\u2013'}
-                    {String(w.end_hour).padStart(2, '0')}h
-                  </div>
-                  <div
-                    className="avail-item"
-                    style={{ fontSize: '10px', color: 'var(--muted)' }}
-                  >
-                    {tz}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
+          )}
+        </div>
 
         <div className="sidebar-label">Dimensiones</div>
         {wEntries.map(([name, w]) => {
@@ -114,7 +94,7 @@ export default function Sidebar({ onOpenProfile }: SidebarProps) {
           const showDelta = rawDelta != null && Math.abs(rawDelta) >= 1;
 
           return (
-            <div className="wt-row" key={name}>
+            <div className="wt-row" key={name} title={w.desc || ''}>
               <span className="wt-name">{w.label}</span>
               <div className="wt-bar-bg">
                 <div className="wt-bar" style={{ width: `${barW}%` }} />

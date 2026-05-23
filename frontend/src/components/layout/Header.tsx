@@ -7,7 +7,9 @@ interface HeaderProps {
 }
 
 export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: HeaderProps) {
-  const { simulating, simulated, hasLearned, seed, activeTab } = useAppState();
+  const { simulating, simulated, hasLearned, seed, activeTab, profile } = useAppState();
+
+  const hasProfile = profile && Object.keys(profile.team_affinities ?? {}).length > 0;
 
   const simLabel = simulating
     ? 'Simulando...'
@@ -16,7 +18,7 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
       : 'Simular';
 
   const steps = [
-    { num: 1, label: 'Perfil',        done: true,        active: false,                    onClick: onOpenProfile, disabled: false },
+    { num: 1, label: 'Perfil',        done: !!hasProfile, active: false,                    onClick: onOpenProfile, disabled: false },
     { num: 2, label: 'Partidos',      done: false,       active: activeTab === 'matches',  onClick: undefined,     disabled: false },
     { num: 3, label: simLabel,        done: simulated,   active: simulating,               onClick: onSimulate,    disabled: simulating },
     { num: 4, label: 'Personalizar',  done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
@@ -25,7 +27,12 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn }: Heade
   return (
     <header id="header">
       <div className="header-top">
-        <h1>{'🏆 Tu Tiempo, Tu Mundial 2026'}</h1>
+        <div>
+          <h1>{'🏆 Tu Tiempo, Tu Mundial 2026'}</h1>
+          <p className="header-subtitle">
+            Clasificador personalizado de partidos — descubre cuales no te puedes perder
+          </p>
+        </div>
         <div className="header-meta">
           {simulating && (
             <span id="seed-badge" style={{ color: 'var(--amber)' }}>

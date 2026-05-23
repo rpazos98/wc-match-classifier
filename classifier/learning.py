@@ -17,27 +17,23 @@ from .models import Match, UserProfile
 # Must match the scorers in build_default_engine() exactly.
 SCORER_NAMES: list[str] = [
     "Favorite Team",
-    "Match Stage",
     "Competitive Tension",
-    "Chaos Potential",
-    "Favorite Player",
-    "Upset Potential",
-    "Form",
+    "Match Stage",
     "Star Power",
+    "Chaos Potential",
+    "Form",
     "Narrative",
     "Same Group",
 ]
 
 DEFAULT_WEIGHTS: dict[str, float] = {
     "Favorite Team":        0.19,
-    "Match Stage":          0.18,
-    "Competitive Tension":  0.18,
-    "Chaos Potential":      0.14,
-    "Favorite Player":      0.07,
-    "Upset Potential":      0.06,
-    "Form":                 0.06,
-    "Star Power":           0.05,
-    "Narrative":            0.04,
+    "Competitive Tension":  0.21,
+    "Match Stage":          0.17,
+    "Star Power":           0.14,
+    "Chaos Potential":      0.12,
+    "Form":                 0.08,
+    "Narrative":            0.06,
     "Same Group":           0.03,
 }
 

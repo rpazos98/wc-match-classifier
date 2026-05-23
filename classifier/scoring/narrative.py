@@ -26,24 +26,17 @@ def _wc_drama() -> dict[frozenset, float]:
     return wc_drama_scores()
 
 
-def _meetings_score(n: int) -> float:
-    if n == 0:  return 0.0
-    if n <= 2:  return 0.45
-    if n <= 4:  return 0.65
-    if n <= 6:  return 0.85
-    return 1.0
-
-
 class NarrativeScorer(BaseScorer):
     """
     Narrative — historical weight and story between two teams.
 
-    Merges rivalry intensity (H2H quality at WC), historical prestige
-    (number of WC meetings), drama indicators (goals, shootouts, cards),
-    and all-competition history into a single storytelling score.
+    Combines WC rivalry intensity, drama indicators, and all-competition
+    history.  WC weight dominates because World Cup encounters are the
+    most memorable; drama matters next (penalties, late goals, cards);
+    general H2H is a minor enrichment.
     """
     name   = "Narrative"
-    weight = 0.04
+    weight = 0.06
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home
@@ -57,25 +50,23 @@ class NarrativeScorer(BaseScorer):
         all_h2h  = _all_h2h().get(key, 0.0)
         drama    = _wc_drama().get(key, 0.0)
 
-        # WC-based: best of rivalry intensity and prestige from meetings
-        wc_combined = max(rivalry, _meetings_score(n_wc))
+        # WC rivalry dominates, drama next, general H2H minor enrichment
+        raw = min(1.0, 0.55 * rivalry + 0.30 * drama + 0.15 * all_h2h)
 
-        # Blend: WC rivalry + drama indicators + all-competition enrichment
-        raw = min(1.0, 0.50 * wc_combined + 0.20 * drama + 0.30 * all_h2h)
+        self._last = (n_wc, rivalry, all_h2h, drama)
 
         if raw < 0.10:
             return 0.0, ""
 
-        if raw >= 0.85:
+        if raw >= 0.70:
             label = "clásico histórico del Mundial"
-        elif raw >= 0.60:
+        elif raw >= 0.50:
             label = "rivalidad histórica"
-        elif raw >= 0.30:
+        elif raw >= 0.25:
             label = "historia en el fútbol internacional"
         else:
             label = "se han enfrentado antes"
 
-        # Add drama flavor text when significant
         drama_note = ""
         if drama >= 0.7:
             drama_note = " — historial de partidos dramáticos"
@@ -85,3 +76,16 @@ class NarrativeScorer(BaseScorer):
         if n_wc >= 3:
             return raw, f"{home} vs {away} — {label} ({n_wc} duelos en el Mundial){drama_note}"
         return raw, f"{home} vs {away} — {label}{drama_note}"
+
+    def detail(self, ctx: ScoringContext, raw: float) -> str:
+        if not hasattr(self, '_last'):
+            return ""
+        n_wc, rivalry, all_h2h, drama = self._last
+        return (
+            f"Duelos mundialistas = {n_wc}\n"
+            f"Rivalidad WC = {rivalry:.2f}\n"
+            f"Drama (goles, penales, rojas) = {drama:.2f}\n"
+            f"Historial total (todas las competiciones) = {all_h2h:.2f}\n"
+            f"Fórmula: 0.55×WC + 0.30×drama + 0.15×historial\n"
+            f"= 0.55×{rivalry:.2f} + 0.30×{drama:.2f} + 0.15×{all_h2h:.2f} = {raw:.2f}"
+        )

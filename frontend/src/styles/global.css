@@ -60,6 +60,12 @@ body {
   color: var(--gold);
   text-shadow: 0 0 30px rgba(212,168,64,0.35);
 }
+.header-subtitle {
+  font-size: 11px;
+  color: var(--text-sm);
+  letter-spacing: 0.3px;
+  margin-top: 1px;
+}
 .header-top {
   display: flex;
   align-items: center;
@@ -234,6 +240,44 @@ body {
 }
 .player-item { font-size: 11px; color: var(--text-sm); padding: 2px 0; }
 .avail-item { font-size: 11px; color: var(--text-sm); padding: 1px 0; }
+.sidebar-cta {
+  text-align: center;
+  padding: 16px 8px;
+  border: 1px dashed var(--border2);
+  border-radius: 8px;
+  margin: 8px 0;
+}
+.sidebar-cta-icon { font-size: 24px; margin-bottom: 8px; opacity: 0.5; }
+.sidebar-cta p { font-size: 11px; color: var(--text-sm); line-height: 1.5; margin-bottom: 8px; }
+.sidebar-cta-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sidebar-editable {
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  transition: background 0.15s;
+}
+.sidebar-editable:hover {
+  background: var(--surf2);
+}
+.sidebar-edit-hint {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0;
+  margin-left: 6px;
+  transition: opacity 0.15s;
+}
+.sidebar-editable:hover .sidebar-edit-hint {
+  opacity: 1;
+}
+.sidebar-section { margin-bottom: 4px; }
 
 /* ── Main panel ── */
 #main {
@@ -530,12 +574,43 @@ body {
 .sc-bar-bg { flex: 1; height: 4px; background: var(--surf2); border-radius: 2px; overflow: hidden; }
 .sc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.7s cubic-bezier(0.4,0,0.2,1); }
 
-/* Reason line */
-.sc-reason {
+/* Clickable expand */
+.contrib-clickable { cursor: pointer; }
+.contrib-clickable:hover .sc-name { color: #fff; }
+.sc-expand-icon {
+  font-size: 7px;
+  margin-left: 4px;
+  color: var(--muted);
+  vertical-align: middle;
+}
+.scorer-expanded { background: rgba(30,48,24,0.3); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
+
+/* Detail panel */
+.sc-detail {
+  padding: 6px 0 2px 18px;
+  animation: sc-detail-in 0.15s ease-out;
+}
+@keyframes sc-detail-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sc-detail-reason {
   font-size: 10px;
-  color: var(--text-sm);
-  padding: 2px 0 0 18px;
+  color: var(--green);
   line-height: 1.4;
+  margin-bottom: 4px;
+}
+.sc-detail-calc {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 4px 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 3px;
+  border-left: 2px solid var(--muted);
 }
 
 /* ── Split bar ── */

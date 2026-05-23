@@ -23,7 +23,7 @@ _BASE_ELO = 1400.0
 
 class CompetitiveTensionScorer(BaseScorer):
     name   = "Competitive Tension"
-    weight = 0.18
+    weight = 0.21
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home
@@ -39,6 +39,8 @@ class CompetitiveTensionScorer(BaseScorer):
         raw = (entropy ** 0.7) * (0.4 + 0.6 * prestige)
         raw = min(1.0, raw)
 
+        self._last = (entropy, prestige, avg_elo, pred)
+
         if raw >= 0.75:
             return raw, f"{home} vs {away} — duelo de élites completamente abierto"
         if raw >= 0.55:
@@ -46,3 +48,15 @@ class CompetitiveTensionScorer(BaseScorer):
         if raw >= 0.40:
             return raw, f"{home} vs {away} — resultado incierto"
         return raw, ""
+
+    def detail(self, ctx: ScoringContext, raw: float) -> str:
+        if not hasattr(self, '_last'):
+            return ""
+        entropy, prestige, avg_elo, pred = self._last
+        return (
+            f"Probabilidades: {pred.p_home:.0%} / {pred.p_draw:.0%} / {pred.p_away:.0%}\n"
+            f"Entropía Shannon normalizada = {entropy:.2f}\n"
+            f"ELO promedio = {avg_elo:.0f} → prestigio = {prestige:.2f}\n"
+            f"Fórmula: entropy^0.7 × (0.4 + 0.6 × prestigio)\n"
+            f"= {entropy:.2f}^0.7 × (0.4 + 0.6 × {prestige:.2f}) = {raw:.2f}"
+        )

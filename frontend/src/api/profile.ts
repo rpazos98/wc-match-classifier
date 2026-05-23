@@ -13,7 +13,3 @@ export function updateProfile(profile: ProfileInput): Promise<MatchesResponse> {
 export function getTeams(): Promise<Team[]> {
   return get<Team[]>("/api/teams");
 }
-
-export function getPlayers(teamCode: string): Promise<string[]> {
-  return get<string[]>(`/api/players/${teamCode}`);
-}

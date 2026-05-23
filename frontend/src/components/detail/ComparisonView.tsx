@@ -20,6 +20,7 @@ export default function ComparisonView({ matchA, matchB }: Props) {
   const rows = allScorers.map((name) => ({
     name,
     label: (weights[name] as ScorerWeight | undefined)?.label || name,
+    desc: (weights[name] as ScorerWeight | undefined)?.desc || '',
     maxPts: (weights[name] as ScorerWeight | undefined)?.max_pts || 0,
     ptsA: matchA.breakdown[name] || 0,
     ptsB: matchB.breakdown[name] || 0,
@@ -75,7 +76,7 @@ export default function ComparisonView({ matchA, matchB }: Props) {
 
           return (
             <div className="comp-scorer-block" key={r.name}>
-              <div className="comp-scorer-name">
+              <div className="comp-scorer-name" title={r.desc}>
                 <span>{r.label}</span>
                 <span className="comp-delta">
                   {Math.abs(delta) < 0.05 ? (

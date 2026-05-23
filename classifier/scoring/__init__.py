@@ -46,8 +46,8 @@ class MatchPrediction:
 class ScoringContext:
     match:                Match
     profile:              UserProfile
-    predicted_home_goals: int | None = None
-    predicted_away_goals: int | None = None
+    predicted_home_goals: float | None = None
+    predicted_away_goals: float | None = None
     prediction:           MatchPrediction | None = None
 
 
@@ -58,6 +58,10 @@ class BaseScorer:
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         """Return (raw_score 0.0–1.0, reason_string)."""
         raise NotImplementedError
+
+    def detail(self, ctx: ScoringContext, raw: float) -> str:
+        """Optional: return multi-line calculation breakdown for the UI."""
+        return ""
 
 
 class ScoringEngine:
@@ -70,8 +74,8 @@ class ScoringEngine:
         self,
         match: Match,
         profile: UserProfile,
-        predicted_home_goals: int | None = None,
-        predicted_away_goals: int | None = None,
+        predicted_home_goals: float | None = None,
+        predicted_away_goals: float | None = None,
     ) -> ScoringResult:
         # Pre-compute ELO prediction once, shared across all scorers
         if match.home != "TBD" and match.away != "TBD":
@@ -90,6 +94,7 @@ class ScoringEngine:
         reason_by_scorer: dict[str, str]   = {}
         raw_by_scorer:    dict[str, float] = {}
         weight_by_scorer: dict[str, float] = {}
+        detail_by_scorer: dict[str, str]   = {}
         reasons:          list[str]        = []
         total = 0.0
 
@@ -103,6 +108,25 @@ class ScoringEngine:
             total += contribution
             if reason:
                 reasons.append(reason)
+            det = scorer.detail(ctx, raw)
+            if det:
+                detail_by_scorer[scorer.name] = det
+
+        # ── Synergy: your team in a big match is more than the sum ────
+        fav_raw   = raw_by_scorer.get("Favorite Team", 0)
+        stage_raw = raw_by_scorer.get("Match Stage", 0)
+        if fav_raw > 0.3 and stage_raw > 0.35:
+            synergy = fav_raw * stage_raw * 8.0  # up to 8 bonus pts
+            total += synergy
+            breakdown["Momento"]        = round(synergy, 1)
+            raw_by_scorer["Momento"]    = round(fav_raw * stage_raw, 4)
+            weight_by_scorer["Momento"] = 0.08
+            reason_by_scorer["Momento"] = "Tu equipo en un partido importante"
+            detail_by_scorer["Momento"] = (
+                f"Afinidad equipo = {fav_raw:.2f}, importancia etapa = {stage_raw:.2f}\n"
+                f"Bonus = afinidad × etapa × 8\n"
+                f"= {fav_raw:.2f} × {stage_raw:.2f} × 8 = {synergy:.1f} pts extra"
+            )
 
         pred_dict = None
         if prediction is not None:
@@ -123,6 +147,7 @@ class ScoringEngine:
             reason_by_scorer=reason_by_scorer,
             raw_by_scorer=raw_by_scorer,
             weight_by_scorer=weight_by_scorer,
+            detail_by_scorer=detail_by_scorer or None,
             prediction=pred_dict,
         )
 
@@ -130,7 +155,7 @@ class ScoringEngine:
         self,
         matches: list[Match],
         profile: UserProfile,
-        predicted_scores: dict[str, tuple[int, int]] | None = None,
+        predicted_scores: dict[str, tuple[float, float]] | None = None,
     ) -> list[ScoringResult]:
         results = []
         for m in matches:
