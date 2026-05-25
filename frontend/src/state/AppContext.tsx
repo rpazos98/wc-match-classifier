@@ -31,6 +31,7 @@ export interface BracketData {
 
 export type TabName = 'matches' | 'bracket';
 export type FilterMode = 'all' | 'confirmed' | 'simulated';
+export type SimEngine = 'classic' | 'fte538';
 
 export interface AppState {
   matches: Match[];
@@ -43,6 +44,7 @@ export interface AppState {
   simulating: boolean;
   simulated: boolean;
   seed: number | null;
+  simEngine: SimEngine;
 
   selectedId: string | null;
   pinnedId: string | null;
@@ -64,6 +66,7 @@ const initialState: AppState = {
   simulating: false,
   simulated: false,
   seed: null,
+  simEngine: 'classic',
 
   selectedId: null,
   pinnedId: null,
@@ -93,7 +96,8 @@ type Action =
   | { type: 'SET_FILTER'; mode: FilterMode }
   | { type: 'SET_PROFILE'; profile: Profile }
   | { type: 'UPDATE_MATCH'; match: Match }
-  | { type: 'SET_LEARNED'; hasLearned: boolean };
+  | { type: 'SET_LEARNED'; hasLearned: boolean }
+  | { type: 'SET_ENGINE'; engine: SimEngine };
 
 export type AppAction = Action;
 
@@ -175,6 +179,9 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_LEARNED':
       return { ...state, hasLearned: action.hasLearned };
+
+    case 'SET_ENGINE':
+      return { ...state, simEngine: action.engine };
 
     default:
       return state;

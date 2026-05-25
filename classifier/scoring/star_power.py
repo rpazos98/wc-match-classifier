@@ -50,7 +50,11 @@ _ELITE_TIER      = (_ELITE_THRESHOLD - _TIER_BASE) / _TIER_RANGE  # 0.833
 
 class StarPowerScorer(BaseScorer):
     name   = "Star Power"
-    weight = 0.14
+    weight = 0.17
+    literature = [
+        "Buraimo & Simmons (2015) — star quality drives TV audiences more than outcome uncertainty",
+        "Cox (2023) — team quality significant for UCL attendance, closeness is not",
+    ]
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home_squad = ctx.match.home_squad

@@ -17,10 +17,12 @@ export default function LearnSummary({
     weights: _weights,
     weight_delta,
     top_features,
+    interactions,
     rating_stats,
     scorer_labels,
     total_examples,
     confidence,
+    method,
   } = result;
 
   const n = rating_stats?.n ?? 0;
@@ -97,6 +99,22 @@ export default function LearnSummary({
               <b style={{ color: confColor }}>{conf}%</b>
             </span>
           )}
+          {method && method !== 'prior' && (
+            <span
+              style={{
+                fontSize: 9,
+                marginLeft: 8,
+                padding: '1px 5px',
+                borderRadius: 3,
+                background: method === 'ridge' ? '#5ed64a18' : '#e8951518',
+                color: method === 'ridge' ? '#5ed64a' : '#e89515',
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              {method === 'ridge' ? 'Ridge ML' : 'Pearson'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -140,6 +158,57 @@ export default function LearnSummary({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Learned interactions */}
+      {interactions && Object.keys(interactions).length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div className="learn-rules-title">Combos descubiertos</div>
+          <div style={{ margin: '4px 0 6px' }}>
+            {Object.entries(interactions)
+              .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+              .slice(0, 4)
+              .map(([name, coef]) => {
+                const positive = coef > 0;
+                const col = positive ? '#5ed64a' : '#e83333';
+                return (
+                  <div
+                    key={name}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 11,
+                      padding: '3px 0',
+                      color: 'var(--text-sm)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: col,
+                        fontWeight: 700,
+                        fontSize: 10,
+                        width: 14,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {positive ? '+' : '−'}
+                    </span>
+                    <span style={{ flex: 1 }}>{name}</span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        color: col,
+                      }}
+                    >
+                      {coef > 0 ? '+' : ''}{coef.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
 

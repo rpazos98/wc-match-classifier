@@ -10,6 +10,9 @@ class FormScorer(BaseScorer):
     """
     name   = "Form"
     weight = 0.08
+    literature = [
+        "Forrest & Simmons (2002) — recent form implicit in attendance demand models",
+    ]
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home

@@ -23,6 +23,10 @@ class ChaosPotentialScorer(BaseScorer):
     """
     name   = "Chaos Potential"
     weight = 0.12
+    literature = [
+        "Vecer (2007) — higher scoring rates → more win probability swings → more excitement",
+        "Petersen-Wagner et al. (2025) — total goals increase YouTube highlight viewership",
+    ]
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         # Use predicted goals from simulation if available
@@ -80,7 +84,8 @@ class ChaosPotentialScorer(BaseScorer):
                 f"Goles promedio por simulación: {hg:.1f} - {ag:.1f}\n"
                 f"Total = {total:.1f}\n"
                 f"Fórmula: min(total / 5.0, 1.0)\n"
-                f"= min({total:.1f} / 5.0, 1.0) = {raw:.2f}"
+                f"= min({total:.1f} / 5.0, 1.0) = {raw:.2f}\n"
+                f"Base teórica: Vecer (2007) — más goles = más cambios de probabilidad = más emoción"
             )
         if hasattr(self, '_last_stats'):
             avg_atk, avg_dfn, fragility = self._last_stats

@@ -35,6 +35,11 @@ def _matchdays() -> dict[int, int]:
 class MatchStageScorer(BaseScorer):
     name   = "Match Stage"
     weight = 0.17
+    literature = [
+        "Jennett (1984) — match significance (contention for a prize) drives attendance",
+        "Buraimo & Forrest (2025) — significance is one of the most robust predictors across 4 leagues",
+        "Csato (2025) — tournament attractiveness as explicit design criterion",
+    ]
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         stage = ctx.match.stage

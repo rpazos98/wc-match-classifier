@@ -12,18 +12,18 @@ from .classification import classify_all, Classification
 
 
 def build_default_engine() -> ScoringEngine:
-    # TimeAvailability removed: availability is a filter, not a preference
-    # signal — if your team plays at 3am you still watch.
+    # Weights informed by sports economics literature:
+    # - Quality > closeness: Buraimo & Simmons (2015), Cox (2023)
+    # - Stakes robust: Jennett (1984), Buraimo & Forrest (2025)
+    # - Rivalry mixed: Tyler et al. (2024)
+    # See research/literature_review.md for full references.
     #
-    # Its 0.10 redistributed: +0.03 Stage, +0.02 Tension,
-    # +0.02 Chaos, +0.01 FavTeam, +0.01 Form, +0.01 Upset.
-    #
-    # Sum = 0.19+0.21+0.17+0.14+0.12+0.08+0.06+0.03 = 1.00
+    # Sum = 0.19+0.18+0.17+0.17+0.12+0.08+0.06+0.03 = 1.00
     return ScoringEngine([
         FavoriteTeamScorer(),           # 0.19
-        CompetitiveTensionScorer(),     # 0.21
+        CompetitiveTensionScorer(),     # 0.18 (was 0.21)
         MatchStageScorer(),             # 0.17
-        StarPowerScorer(),              # 0.14
+        StarPowerScorer(),              # 0.17 (was 0.14)
         ChaosPotentialScorer(),         # 0.12
         FormScorer(),                   # 0.08
         NarrativeScorer(),              # 0.06

@@ -103,6 +103,12 @@ def _load_squads(con: sqlite3.Connection) -> dict[str, Squad]:
     return {code: Squad(code, tuple(players)) for code, players in teams.items()}
 
 
+def load_squads() -> dict[str, Squad]:
+    """Public wrapper: returns {fifa_code: Squad} for all teams."""
+    con = _connect()
+    return _load_squads(con)
+
+
 # ── Team quality (for scoring) ─────────────────────────────────────────────────
 
 def team_quality_scores() -> dict[str, float]:

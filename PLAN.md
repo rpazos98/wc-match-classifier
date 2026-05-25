@@ -106,6 +106,7 @@ CREATE TABLE user_weights (
 ### Fase 2 — Feedback implícito
 
 Registrar comportamiento real sin preguntar al usuario:
+
 - Marcó partido como favorito → positivo
 - Buscó el partido en el listado → señal débil positiva
 - Cambió clasificación manualmente → señal fuerte
@@ -119,6 +120,7 @@ Cada acción dispara un micro-refit (o encola para batch refit).
 **Cuando:** ≥ 50 usuarios con ≥ 20 eventos cada uno (≈ 1000 observaciones).
 
 **Approach:** Matrix Factorization sobre (user × scorer_weights):
+
 - Cada usuario = vector de 10 dimensiones (sus pesos aprendidos)
 - k-NN en ese espacio → "usuarios similares"
 - CF score = promedio ponderado de qué vieron usuarios similares
@@ -147,12 +149,12 @@ Pre-training con datos históricos 2018/2022.
 
 Cada `preference_event` = una fila de entrenamiento:
 
-| Campo | Rol |
-|-------|-----|
-| `features_a/b` | Features (10 scorer values) |
-| `chosen` | Label binario |
-| `rating` | Label continuo (1–5) |
-| `source` | Peso de la señal (pair > rated > watched > skipped) |
+| Campo          | Rol                                                 |
+| -------------- | --------------------------------------------------- |
+| `features_a/b` | Features (10 scorer values)                         |
+| `chosen`       | Label binario                                       |
+| `rating`       | Label continuo (1–5)                                |
+| `source`       | Peso de la señal (pair > rated > watched > skipped) |
 
 Con 50 usuarios × 30 pares = 1500 filas → suficiente para CF.
 
@@ -170,9 +172,9 @@ Con 50 usuarios × 30 pares = 1500 filas → suficiente para CF.
 
 ## Criterio de éxito
 
-| Métrica | Target |
-|---------|--------|
-| Retención de pesos entre sesiones | 100% (Fase 1) |
-| Reducción de pares necesarios para warm-up | < 5 (vs. 12 actual) |
-| Precisión predicción "Imperdible" vs. visto real | > 70% |
-| Tiempo de refit incremental | < 200ms |
+| Métrica                                          | Target              |
+| ------------------------------------------------ | ------------------- |
+| Retención de pesos entre sesiones                | 100% (Fase 1)       |
+| Reducción de pares necesarios para warm-up       | < 5 (vs. 12 actual) |
+| Precisión predicción "Imperdible" vs. visto real | > 70%               |
+| Tiempo de refit incremental                      | < 200ms             |

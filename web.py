@@ -133,18 +133,20 @@ _SCORER_LABELS: dict[str, str] = {
     "Form":              "Forma",
     "Star Power":        "Estrellas",
     "Momento":           "Momento",
+    "Espectáculo":       "Espectáculo",
 }
 
 _SCORER_DESCS: dict[str, str] = {
     "Favorite Team":       "Qué tanto te importa este equipo",
-    "Match Stage":         "Importancia de la ronda (grupo, octavos, final...)",
-    "Competitive Tension": "Qué tan parejo es el partido según probabilidades",
-    "Chaos Potential":     "Probabilidad de partido abierto y con muchos goles",
-    "Narrative":           "Rivalidades históricas y contexto entre selecciones",
+    "Match Stage":         "Importancia de la ronda — los stakes son el predictor más robusto (Jennett 1984)",
+    "Competitive Tension": "Paridad y prestigio — leve favorito > 50-50 puro (Vecer 2007)",
+    "Chaos Potential":     "Goles esperados — más goles = más cambios de probabilidad (Vecer 2007)",
+    "Narrative":           "Rivalidades históricas — efecto real pero inconsistente (Tyler 2024)",
     "Same Group":          "Partido entre equipos del mismo grupo",
     "Form":                "Momento actual de los equipos (racha reciente)",
-    "Star Power":          "Nivel de las figuras en cancha",
+    "Star Power":          "Calidad de figuras — el factor más fuerte según la evidencia (Cox 2023)",
     "Momento":             "Bonus por tu equipo en un partido de alta importancia",
+    "Espectáculo":         "Parejo + goleador = emoción desproporcionada (Vecer 2007)",
 }
 
 
@@ -186,6 +188,10 @@ def _match_archetype(raw: dict[str, float], pred: dict | None, bd: dict[str, flo
 
     if r_stage >= 0.7:
         archetypes.append(("decisive", "🔥", "Partido decisivo", r_stage))
+    # Vecer (2007): close + high-scoring = peak excitement
+    if r_tension >= 0.55 and r_chaos >= 0.55:
+        score = (r_tension + r_chaos) / 2
+        archetypes.append(("spectacle", "🎭", "Espectáculo asegurado", score))
     if r_chaos >= 0.6:
         archetypes.append(("chaos", "⚡", "Partido abierto", r_chaos))
     if r_narr >= 0.4:
@@ -231,8 +237,8 @@ def _match_narrative(
         parts.append(f"Duelo de {stage_name}.")
 
     # Character: what to expect
-    if tension >= 0.7 and chaos >= 0.6:
-        parts.append("Se esperan emociones fuertes: equipos parejos y vocación ofensiva.")
+    if tension >= 0.55 and chaos >= 0.55:
+        parts.append("Parejo y con goles esperados — la combinación que más emoción genera.")
     elif tension >= 0.7:
         parts.append("Equipos muy parejos — resultado completamente abierto.")
     elif chaos >= 0.6:
@@ -424,6 +430,7 @@ def update_profile(req: _ProfileIn):
 
 class _SimIn(BaseModel):
     seed: int | None = None
+    engine: str = "classic"  # "classic" or "fte538"
 
 
 _MC_N_SIMS = 5000  # number of Monte Carlo iterations
@@ -431,15 +438,16 @@ _MC_N_SIMS = 5000  # number of Monte Carlo iterations
 
 @app.post("/api/simulate")
 def simulate(req: _SimIn = _SimIn()):
-    from classifier.simulation import run_monte_carlo
+    from classifier.simulation import run_monte_carlo, SimEngine
     from classifier.models import Stage
 
+    engine      = SimEngine.FTE538 if req.engine == "fte538" else SimEngine.CLASSIC
     seed        = req.seed if req.seed is not None else random.randint(0, 9999)
     tz          = _tz()
     all_matches = load_all_matches()
     confirmed   = {m for m in all_matches if m.home != "TBD" and m.away != "TBD"}
 
-    mc  = run_monte_carlo(all_matches, n=_MC_N_SIMS, seed=seed)
+    mc  = run_monte_carlo(all_matches, n=_MC_N_SIMS, seed=seed, engine=engine)
     sim = mc.representative  # most MC-aligned run — source of truth for all displayed results
     n   = mc.n_sims
 
@@ -608,7 +616,10 @@ def get_learn_matches(n: int = 15, seed: int | None = None, exclude: str = "", y
     from classifier.historical import sample_historical_matches
     exclude_ids = [x for x in exclude.split(",") if x]
     year_list = [int(y) for y in years.split(",") if y.strip().isdigit()] or None
-    matches = sample_historical_matches(_profile, n=n, seed=seed, exclude_ids=exclude_ids, years=year_list)
+    matches = sample_historical_matches(
+        _profile, n=n, seed=seed, exclude_ids=exclude_ids, years=year_list,
+        rated_examples=_rated_examples if _rated_examples else None,
+    )
     return {"matches": matches, "total": len(matches)}
 
 
@@ -682,6 +693,53 @@ def get_learn_state():
             k: round(_learned_weights[k] - DEFAULT_WEIGHTS.get(k, 0.0), 4)
             for k in (_learned_weights or {})
         } if _learned_weights else {},
+    }
+
+
+class _PreviewMatchIn(BaseModel):
+    home:  str
+    away:  str
+    stage: str
+
+
+@app.post("/api/matches/preview")
+def preview_match(req: _PreviewMatchIn):
+    """Classify an ad-hoc match and return full serialized result."""
+    from classifier.models import Match, Stage
+    from db.query import load_squads
+
+    home = req.home.upper()
+    away = req.away.upper()
+
+    try:
+        stage = Stage(req.stage)
+    except ValueError:
+        return {"error": f"Invalid stage: {req.stage}"}
+
+    if home == away:
+        return {"error": "Home and away must be different teams"}
+
+    # Build a synthetic match
+    squads = load_squads()
+    m = Match(
+        match_id=f"PREVIEW_{home}_{away}",
+        home=home,
+        away=away,
+        kickoff_utc=datetime.now(timezone.utc),
+        stage=stage,
+        venue="Hipotético",
+        home_squad=squads.get(home),
+        away_squad=squads.get(away),
+    )
+
+    classed = classify_matches([m], _profile, learned_weights=_learned_weights)
+    if not classed:
+        return {"error": "Could not classify match"}
+
+    tz = _tz()
+    return {
+        "match":   _serialize_match(classed[0], tz),
+        "weights": _score_weights(),
     }
 
 

@@ -223,8 +223,10 @@ export interface FitRatingsResponse {
   weights: Record<string, number>;
   weight_delta: Record<string, number>;
   top_features: TopFeature[];
+  interactions: Record<string, number>;
   rating_stats: RatingStats;
   confidence: number;
+  method: 'prior' | 'pearson' | 'ridge';
   scorer_labels: Record<string, string>;
   total_examples: number;
 }

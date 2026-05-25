@@ -360,7 +360,7 @@ def _extract_features(row: dict, profile: UserProfile) -> dict[str, float]:
     fp_raw = _fav_player_raw(
         row.get("home_goal", ""),
         row.get("away_goal", ""),
-        profile.favorite_players,
+        getattr(profile, "favorite_players", []),
     )
 
     # Competitive Tension: entropy × prestige (pre-match ELO)
@@ -595,20 +595,22 @@ def sample_historical_matches(
     years: list[int] | None = None,
     seed: int | None = None,
     exclude_ids: list[str] | None = None,
+    rated_examples: list[dict] | None = None,
 ) -> list[dict]:
     """
     Return n individual historical WC matches for single-match rating.
 
-    Uses diagnostic-core-first sampling:
-      1. Extract features for all candidates
-      2. Select the single most diagnostic match per scorer — the match
-         where that scorer is high and everything else is low, so the
-         user's rating directly reveals preference for that dimension
-      3. Fill remaining slots with diverse, high-spread matches
-      4. Randomize presentation order
+    Uses a hybrid strategy:
+      1. If rated_examples exist → active learning: pick matches where the
+         current Ridge model has highest prediction uncertainty (bootstrap std).
+         These are the matches whose rating will maximally reduce model error.
+      2. Diagnostic core: one match per scorer where that dimension dominates,
+         so each rating isolates preference for one scorer.
+      3. Fill remaining slots with diverse, high-spread matches.
+      4. Randomize presentation order.
 
-    This ensures each rating produces maximum information about which
-    scorers the user actually cares about.
+    Active learning means users reach good personalization in ~10 ratings
+    instead of ~30.
     """
     if years is None:
         years = list(range(1930, 2023, 4))  # all World Cups 1930-2022
@@ -631,7 +633,7 @@ def sample_historical_matches(
 
     rng  = random.Random(seed)
     favs = {t for t, a in profile.team_affinities.items() if a > 0}
-    from classifier.learning import SCORER_NAMES
+    from classifier.learning import SCORER_NAMES, predict_uncertainty
 
     # ── Step 1: extract features for all candidates ──────────────────────
     enriched: list[tuple[dict, dict[str, float], list[float]]] = []
@@ -643,10 +645,26 @@ def sample_historical_matches(
     selected: list[tuple[dict, dict[str, float]]] = []
     seen_ids: set[str] = set()
 
-    # ── Step 2: diagnostic core — best isolating match per scorer ────────
-    # For each scorer, find the match where it's highest relative to others.
-    # This is the match whose rating most directly reveals preference for
-    # that scorer: "if user rates this high, they care about X".
+    # ── Step 2: active learning — pick most uncertain matches ────────────
+    # If we have prior ratings, use bootstrap uncertainty to find matches
+    # where the model disagrees most → rating these reduces error fastest.
+    if rated_examples and len(rated_examples) >= 5:
+        candidate_raws = [feats for _, feats, _ in enriched]
+        uncertainties = predict_uncertainty(rated_examples, candidate_raws)
+
+        # Rank by uncertainty, pick top matches
+        scored = list(zip(uncertainties, range(len(enriched))))
+        scored.sort(reverse=True)
+
+        n_active = min(n // 2, len(scored))  # half from active learning
+        for _, idx in scored[:n_active]:
+            r, feats, vec = enriched[idx]
+            mid = _match_id(r)
+            if mid not in seen_ids:
+                seen_ids.add(mid)
+                selected.append((r, feats))
+
+    # ── Step 3: diagnostic core — best isolating match per scorer ────────
     for i, scorer in enumerate(SCORER_NAMES):
         if len(selected) >= n:
             break
@@ -658,7 +676,6 @@ def sample_historical_matches(
             if mid in seen_ids:
                 continue
             diag = _diagnostic_score(i, vec)
-            # Mild bonus for matches involving user's fav teams (more engaging)
             hc = name_to_code(r["home_team"])
             ac = name_to_code(r["away_team"])
             if hc in favs or ac in favs:
@@ -671,8 +688,7 @@ def sample_historical_matches(
             seen_ids.add(_match_id(best_e[0]))
             selected.append(best_e)
 
-    # ── Step 3: fill remaining slots with diverse matches ────────────────
-    # Prefer high-spread (informative) + fav-team + knockout
+    # ── Step 4: fill remaining slots with diverse matches ────────────────
     def _fill_key(e):
         r, feats, vec = e
         spread = _feature_spread(feats)

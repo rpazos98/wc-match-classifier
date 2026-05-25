@@ -52,8 +52,9 @@ class ScoringContext:
 
 
 class BaseScorer:
-    name:   str
-    weight: float  # contribution weight; all scorers should sum to 1.0
+    name:       str
+    weight:     float         # contribution weight; all scorers should sum to 1.0
+    literature: list[str] = []  # key paper references backing this scorer
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         """Return (raw_score 0.0–1.0, reason_string)."""
@@ -126,6 +127,24 @@ class ScoringEngine:
                 f"Afinidad equipo = {fav_raw:.2f}, importancia etapa = {stage_raw:.2f}\n"
                 f"Bonus = afinidad × etapa × 8\n"
                 f"= {fav_raw:.2f} × {stage_raw:.2f} × 8 = {synergy:.1f} pts extra"
+            )
+
+        # ── Synergy: close + high-scoring = disproportionate excitement ──
+        # Vecer (2007): excitement ∝ win-probability total variation,
+        # which depends on BOTH scoring rate and closeness interacting.
+        tension_raw = raw_by_scorer.get("Competitive Tension", 0)
+        chaos_raw   = raw_by_scorer.get("Chaos Potential", 0)
+        if tension_raw > 0.45 and chaos_raw > 0.45:
+            vecer = tension_raw * chaos_raw * 6.0  # up to 6 bonus pts
+            total += vecer
+            breakdown["Espectáculo"]        = round(vecer, 1)
+            raw_by_scorer["Espectáculo"]    = round(tension_raw * chaos_raw, 4)
+            weight_by_scorer["Espectáculo"] = 0.06
+            reason_by_scorer["Espectáculo"] = "Partido cerrado y con goles — alto potencial de emoción"
+            detail_by_scorer["Espectáculo"] = (
+                f"Tensión competitiva = {tension_raw:.2f}, Potencial caótico = {chaos_raw:.2f}\n"
+                f"Referencia: Vecer (2007) — excitación ∝ goles × paridad\n"
+                f"Bonus = tensión × caos × 6 = {vecer:.1f} pts"
             )
 
         pred_dict = None

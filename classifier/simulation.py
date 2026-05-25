@@ -26,11 +26,20 @@ SF feeds (matches 101–102):
 """
 from __future__ import annotations
 
+import enum
+import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass, replace
+from functools import lru_cache
 
 from .models import Match, Stage
+
+
+class SimEngine(enum.Enum):
+    """Simulation engine selector."""
+    CLASSIC = "classic"     # Current approach: decide winner via ELO, then generate goals
+    FTE538  = "fte538"      # FiveThirtyEight-style: expected goals → Poisson → score → outcome
 
 
 @dataclass
@@ -93,7 +102,12 @@ _T3_SLOT_MATCH_NUMS = {75, 78, 79, 80, 81, 82, 85, 88}
 
 # ── Host nations (home advantage in WC 2026) ─────────────────────────────────
 _HOST_CODES = frozenset({"USA", "CAN", "MEX"})
+_HOST_CONFEDERATION = "CONCACAF"
 _HOST_ELO_BOOST = 60.0   # ~60 ELO ≈ home crowd boost (lower than full 100 since partial)
+_CONFED_ELO_BOOST = 20.0  # ~1/3 of host boost for same confederation (538-style)
+
+# Diagonal inflation: boost draw probabilities in score matrix (538 uses ~9%)
+_DRAW_INFLATION = 0.09
 
 
 # ── Multi-factor team strength ────────────────────────────────────────────────
@@ -204,11 +218,157 @@ def _elo_to_q(elo: float) -> float:
     return max(0.05, min(0.95, (elo - 1200) / 1000.0))
 
 
+@lru_cache(maxsize=1)
+def _confederation_map() -> dict[str, str]:
+    from db.query import confederation_map
+    return confederation_map()
+
+
+def _confed_elo_boost(code: str) -> float:
+    """Return confederation ELO boost if team shares confederation with host."""
+    if code in _HOST_CODES:
+        return 0.0  # hosts already get _HOST_ELO_BOOST
+    confed = _confederation_map().get(code, "")
+    return _CONFED_ELO_BOOST if confed == _HOST_CONFEDERATION else 0.0
+
+
+# ── FiveThirtyEight-style expected goals ─────────────────────────────────────
+
+def _expected_goals(
+    home: str,
+    away: str,
+    home_venue: str = "",
+) -> tuple[float, float]:
+    """
+    Compute expected goals for each team (538-style).
+
+    Each team's xG is driven by its attack vs opponent's defense,
+    scaled by composite ELO difference. Average WC match ≈ 2.5 total goals.
+    """
+    profiles = _load_team_profiles()
+    p_home = profiles.get(home)
+    p_away = profiles.get(away)
+
+    # Composite ELO (with confederation boost for 538 mode)
+    home_is_host = home in _HOST_CODES
+    away_is_host = away in _HOST_CODES
+    r_home = _composite_elo(home, is_home_host=home_is_host) + _confed_elo_boost(home)
+    r_away = _composite_elo(away, is_home_host=away_is_host) + _confed_elo_boost(away)
+
+    # 538 approach: each team's xG = goals needed to keep their offensive rating
+    # unchanged. We model this as base rate ± adjustments.
+    #
+    # WC historical average ≈ 2.5 total goals → ~1.25 per team.
+    # We use additive adjustments to keep total goals anchored near 2.5.
+    base = 1.25
+
+    # ELO difference → goal adjustment (200 ELO ≈ 0.3 goal swing)
+    elo_adj = (r_home - r_away) / 650.0
+
+    if p_home and p_away:
+        # Attack/defense as additive offsets (zero-centered)
+        # Each ranges 0-1, centered ~0.5, so (x - 0.5) gives ±0.5
+        home_atk_bonus = (p_home.attack - 0.5) * 0.3   # ±0.15
+        home_def_penalty = (p_away.defense - 0.5) * 0.3  # opponent defense hurts
+        away_atk_bonus = (p_away.attack - 0.5) * 0.3
+        away_def_penalty = (p_home.defense - 0.5) * 0.3
+
+        lam_home = base + elo_adj + home_atk_bonus - home_def_penalty
+        lam_away = base - elo_adj + away_atk_bonus - away_def_penalty
+    else:
+        lam_home = base + elo_adj
+        lam_away = base - elo_adj
+
+    # Clamp to reasonable range
+    lam_home = max(0.20, min(3.0, lam_home))
+    lam_away = max(0.20, min(3.0, lam_away))
+
+    return lam_home, lam_away
+
+
+def _sim_match_poisson(
+    home: str,
+    away: str,
+    rng: random.Random,
+    allow_draw: bool = True,
+) -> tuple[int, int]:
+    """
+    FiveThirtyEight-style match simulation.
+
+    1. Compute expected goals per team
+    2. Sample from independent Poisson distributions
+    3. Apply diagonal inflation to boost draw probability
+    4. If allow_draw=False (knockout), re-roll on draws
+    """
+    lam_home, lam_away = _expected_goals(home, away)
+
+    if allow_draw:
+        # Build score matrix with diagonal inflation, then sample
+        return _sample_with_diagonal_inflation(lam_home, lam_away, rng)
+    else:
+        # Knockout: keep re-rolling until decisive
+        for _ in range(100):
+            hg = _poisson(lam_home, rng)
+            ag = _poisson(lam_away, rng)
+            if hg != ag:
+                return hg, ag
+        # Fallback: penalty shootout (coin flip with slight favorite edge)
+        if rng.random() < 0.5 + (lam_home - lam_away) * 0.05:
+            return 1, 0
+        return 0, 1
+
+
+def _sample_with_diagonal_inflation(
+    lam_home: float,
+    lam_away: float,
+    rng: random.Random,
+    max_goals: int = 8,
+) -> tuple[int, int]:
+    """
+    Build a score probability matrix, inflate the diagonal (draws),
+    then sample a score from the matrix.
+
+    538 uses ~9% multiplicative inflation on each draw cell.
+    """
+    # Build Poisson PMFs
+    pmf_h = [_poisson_pmf(k, lam_home) for k in range(max_goals + 1)]
+    pmf_a = [_poisson_pmf(k, lam_away) for k in range(max_goals + 1)]
+
+    # Build score matrix with multiplicative diagonal inflation
+    matrix: list[list[float]] = []
+    for h in range(max_goals + 1):
+        row = []
+        for a in range(max_goals + 1):
+            p = pmf_h[h] * pmf_a[a]
+            if h == a:
+                p *= (1.0 + _DRAW_INFLATION)
+            row.append(p)
+        matrix.append(row)
+
+    # Normalize and sample
+    total = sum(p for row in matrix for p in row)
+    r = rng.random() * total
+    cumul = 0.0
+    for h in range(max_goals + 1):
+        for a in range(max_goals + 1):
+            cumul += matrix[h][a]
+            if cumul >= r:
+                return h, a
+
+    return 0, 0  # fallback
+
+
+def _poisson_pmf(k: int, lam: float) -> float:
+    """Poisson probability mass function: P(X=k) for X ~ Poisson(lam)."""
+    return (lam ** k) * math.exp(-lam) / math.factorial(k)
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def simulate_bracket(
     matches: list[Match],
     seed: int | None = None,
+    engine: SimEngine = SimEngine.CLASSIC,
 ) -> SimulationResult:
     """
     Return a SimulationResult with all TBD teams resolved via simulation.
@@ -226,7 +386,7 @@ def simulate_bracket(
     _sq_con.close()
 
     # Step 1 – simulate group stage → standings + per-match winners + scores
-    standings, group_match_winners, group_match_scores = _simulate_groups(group_matches, rng)
+    standings, group_match_winners, group_match_scores = _simulate_groups(group_matches, rng, engine)
 
     # Step 2 – extract positions
     group_winners:  dict[str, str] = {}
@@ -285,7 +445,7 @@ def simulate_bracket(
         resolved.append(replace(m, home=home, away=away,
                                 home_squad=_squads.get(home),
                                 away_squad=_squads.get(away)))
-        w, l, hg, ag = _sim_ko(home, away, rng)
+        w, l, hg, ag = _sim_ko(home, away, rng, engine)
         winners[match_num]     = w
         losers[match_num]      = l
         match_scores[match_num] = (hg, ag)
@@ -331,6 +491,7 @@ def run_monte_carlo(
     matches: list[Match],
     n: int = 1000,
     seed: int | None = None,
+    engine: SimEngine = SimEngine.CLASSIC,
 ) -> MonteCarloResult:
     """
     Run `n` independent simulations and aggregate win probabilities.
@@ -353,7 +514,7 @@ def run_monte_carlo(
     goal_counts: dict[int, int] = defaultdict(int)
 
     for s in seeds:
-        result = simulate_bracket(matches, seed=s)
+        result = simulate_bracket(matches, seed=s, engine=engine)
         champion_counts[result.match_winners[104]] += 1
         finalist_counts[result.match_winners[104]] += 1
         finalist_counts[result.match_losers[104]]  += 1
@@ -424,7 +585,7 @@ def run_monte_carlo(
 
     # Step 3: pick the champion run most aligned with champion-path modals
     best_seed = max(champion_runs, key=lambda x: _score(x[1]))[0]
-    representative = simulate_bracket(matches, seed=best_seed)
+    representative = simulate_bracket(matches, seed=best_seed, engine=engine)
 
     # Compute average goals per match
     match_avg_goals: dict[int, tuple[float, float]] = {}
@@ -451,8 +612,17 @@ def _sim_ko(
     home: str,
     away: str,
     rng: random.Random,
+    engine: SimEngine = SimEngine.CLASSIC,
 ) -> tuple[str, str, int, int]:
     """Simulate a knockout match → (winner, loser, home_goals, away_goals). No draws."""
+    if engine == SimEngine.FTE538:
+        hg, ag = _sim_match_poisson(home, away, rng, allow_draw=False)
+        if hg > ag:
+            return home, away, hg, ag
+        else:
+            return away, home, hg, ag
+
+    # Classic: decide winner via ELO probability, then generate goals
     p_home, _, p_away = _composite_win_probability(home, away)
     total = p_home + p_away
     p_hw = p_home / total if total > 0 else 0.5
@@ -537,6 +707,7 @@ def _sim_draw_score(rng: random.Random) -> tuple[int, int]:
 def _simulate_groups(
     group_matches: list[Match],
     rng: random.Random,
+    engine: SimEngine = SimEngine.CLASSIC,
 ) -> tuple[dict[str, list[dict]], dict[int, str], dict[int, tuple[int, int]]]:
     """
     Simulate all group stage matches using ELO-based probabilities.
@@ -564,27 +735,47 @@ def _simulate_groups(
     for m in group_matches:
         if m.home == "TBD" or m.away == "TBD":
             continue
-        p_home, p_draw, p_away = _composite_win_probability(m.home, m.away)
-        r     = rng.random()
-        hw    = p_home
-        mn    = int(m.match_id[1:])
-        if r < hw:
-            hg, ag = _sim_score_v2(profiles.get(m.home), profiles.get(m.away), rng)
-            pts[m.home] += 3
-            gf[m.home]  += hg;  gf[m.away]  += ag
-            gd[m.home]  += hg - ag;  gd[m.away]  -= hg - ag
-            match_winners[mn] = m.home
-        elif r < hw + p_draw:
-            hg, ag = _sim_draw_score(rng)
-            pts[m.home] += 1;  pts[m.away] += 1
-            gf[m.home]  += hg;  gf[m.away]  += ag
-            match_winners[mn] = m.home if p_home >= p_away else m.away
+        mn = int(m.match_id[1:])
+
+        if engine == SimEngine.FTE538:
+            # 538-style: generate score first, outcome follows from score
+            hg, ag = _sim_match_poisson(m.home, m.away, rng, allow_draw=True)
+            if hg > ag:
+                pts[m.home] += 3
+                match_winners[mn] = m.home
+            elif hg == ag:
+                pts[m.home] += 1;  pts[m.away] += 1
+                # For "winner" tracking in draws, pick higher-rated team
+                p_home, _, p_away = _composite_win_probability(m.home, m.away)
+                match_winners[mn] = m.home if p_home >= p_away else m.away
+            else:
+                pts[m.away] += 3
+                match_winners[mn] = m.away
+            gf[m.home] += hg;  gf[m.away] += ag
+            gd[m.home] += hg - ag;  gd[m.away] += ag - hg
         else:
-            ag, hg = _sim_score_v2(profiles.get(m.away), profiles.get(m.home), rng)
-            pts[m.away] += 3
-            gf[m.home]  += hg;  gf[m.away]  += ag
-            gd[m.away]  += ag - hg;  gd[m.home]  -= ag - hg
-            match_winners[mn] = m.away
+            # Classic: decide outcome via ELO probability, then generate goals
+            p_home, p_draw, p_away = _composite_win_probability(m.home, m.away)
+            r  = rng.random()
+            hw = p_home
+            if r < hw:
+                hg, ag = _sim_score_v2(profiles.get(m.home), profiles.get(m.away), rng)
+                pts[m.home] += 3
+                gf[m.home]  += hg;  gf[m.away]  += ag
+                gd[m.home]  += hg - ag;  gd[m.away]  -= hg - ag
+                match_winners[mn] = m.home
+            elif r < hw + p_draw:
+                hg, ag = _sim_draw_score(rng)
+                pts[m.home] += 1;  pts[m.away] += 1
+                gf[m.home]  += hg;  gf[m.away]  += ag
+                match_winners[mn] = m.home if p_home >= p_away else m.away
+            else:
+                ag, hg = _sim_score_v2(profiles.get(m.away), profiles.get(m.home), rng)
+                pts[m.away] += 3
+                gf[m.home]  += hg;  gf[m.away]  += ag
+                gd[m.away]  += ag - hg;  gd[m.home]  -= ag - hg
+                match_winners[mn] = m.away
+
         match_scores[mn] = (hg, ag)
 
     standings: dict[str, list[dict]] = {}

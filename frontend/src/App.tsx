@@ -8,6 +8,7 @@ import MatchList from './components/matches/MatchList';
 import DetailPanel from './components/detail/DetailPanel';
 import BracketView from './components/bracket/BracketView';
 import LearnModal from './components/learn/LearnModal';
+import MatchCreator from './components/creator/MatchCreator';
 import ProfileEditModal from './components/profile/ProfileEditModal';
 import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
@@ -22,6 +23,7 @@ function AppInner() {
 
   const [editSection, setEditSection] = useState<EditSection | null>(null);
   const [learnOpen, setLearnOpen] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
   // SWR: auto-fetch + cache matches and profile
@@ -78,7 +80,7 @@ function AppInner() {
   const handleSimulate = useCallback(async () => {
     try {
       dispatch({ type: 'SET_SIMULATING' });
-      const data = await simulate();
+      const data = await simulate(undefined, state.simEngine);
       const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
       const finalMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 104);
       const thirdMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 103);
@@ -105,7 +107,7 @@ function AppInner() {
       const msg = err instanceof Error ? err.message : String(err);
       toast('\u26A0 Error al simular: ' + msg);
     }
-  }, [dispatch, toast]);
+  }, [dispatch, toast, state.simEngine]);
 
   const handleLearnClose = useCallback(() => {
     setLearnOpen(false);
@@ -123,6 +125,7 @@ function AppInner() {
         onOpenProfile={() => setEditSection('teams')}
         onSimulate={handleSimulate}
         onOpenLearn={() => setLearnOpen(true)}
+        onOpenCreator={() => setCreatorOpen(true)}
       />
       <div id="layout">
         <Sidebar onEditSection={setEditSection} />
@@ -151,6 +154,10 @@ function AppInner() {
       <LearnModal
         isOpen={learnOpen}
         onClose={handleLearnClose}
+      />
+      <MatchCreator
+        isOpen={creatorOpen}
+        onClose={() => setCreatorOpen(false)}
       />
     </>
   );

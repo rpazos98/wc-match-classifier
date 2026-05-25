@@ -37,6 +37,10 @@ class NarrativeScorer(BaseScorer):
     """
     name   = "Narrative"
     weight = 0.06
+    literature = [
+        "Tyler et al. (2024) — rivalry effects real but mixed; measurement methodology matters",
+        "Nalbantis et al. (2017) — perceived competitiveness drives interest more than objective stats",
+    ]
 
     def score(self, ctx: ScoringContext) -> tuple[float, str]:
         home = ctx.match.home
@@ -87,5 +91,6 @@ class NarrativeScorer(BaseScorer):
             f"Drama (goles, penales, rojas) = {drama:.2f}\n"
             f"Historial total (todas las competiciones) = {all_h2h:.2f}\n"
             f"Fórmula: 0.55×WC + 0.30×drama + 0.15×historial\n"
-            f"= 0.55×{rivalry:.2f} + 0.30×{drama:.2f} + 0.15×{all_h2h:.2f} = {raw:.2f}"
+            f"= 0.55×{rivalry:.2f} + 0.30×{drama:.2f} + 0.15×{all_h2h:.2f} = {raw:.2f}\n"
+            f"Peso conservador (6%) — Tyler et al. (2024): efecto rivalidad es real pero inconsistente entre contextos"
         )
