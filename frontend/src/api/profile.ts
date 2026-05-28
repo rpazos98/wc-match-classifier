@@ -1,13 +1,13 @@
-import { get, put } from "./client";
-import type { Profile, ProfileInput, MatchesResponse, Team } from "../types";
+import { get } from "./client";
+import type { Profile, Team } from "../types";
+import { loadProfile, saveProfile } from "./storage";
 
-export function getProfile(): Promise<Profile> {
-  return get<Profile>("/api/profile");
+export function getProfile(): Profile {
+  return loadProfile();
 }
 
-/** Updates profile and returns refreshed matches (backend re-scores on save). */
-export function updateProfile(profile: ProfileInput): Promise<MatchesResponse> {
-  return put<MatchesResponse>("/api/profile", profile);
+export function updateProfile(profile: Profile): void {
+  saveProfile(profile);
 }
 
 export function getTeams(): Promise<Team[]> {

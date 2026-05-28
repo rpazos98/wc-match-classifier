@@ -1,6 +1,9 @@
 """
 web.py — FastAPI web UI for Tu tiempo, tu Mundial 2026.
 
+Stateless API — all user state (profile, learned weights) lives in the
+browser's localStorage and is sent with each request.
+
 Launch:
     uv run uvicorn web:app --reload
     uv run uvicorn web:app --host 0.0.0.0 --port 8000
@@ -9,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import json
 import os
 import random
 from contextlib import asynccontextmanager
@@ -55,74 +57,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Persistence ────────────────────────────────────────────────────────────────
-
-_STATE_FILE = Path(__file__).parent / "data" / "user_state.json"
-
-_DEFAULT_PROFILE_DATA = {
-    "name":             "Fan Demo",
-    "team_affinities":  {"ARG": 1.0, "MEX": 1.0},
-    "time_windows": [],
-}
-
-
-def _build_profile(data: dict) -> UserProfile:
-    windows = [
-        TimeWindow(
-            start_hour=w["start_hour"],
-            end_hour=w["end_hour"],
-            timezone=ZoneInfo(w.get("timezone", "America/Mexico_City")),
-            weekday=w.get("weekday"),
-        )
-        for w in data.get("time_windows", [])
-    ]
-    # Backward compat: migrate old favorite_teams list
-    affinities = data.get("team_affinities")
-    if not affinities and data.get("favorite_teams"):
-        affinities = {t.upper(): 1.0 for t in data["favorite_teams"]}
-    return UserProfile(
-        name=data.get("name", "Fan Demo"),
-        team_affinities={t.upper(): float(v) for t, v in (affinities or {}).items()},
-        time_windows=windows,
-    )
-
-
-def _load_state() -> tuple[UserProfile, list[dict], dict | None, dict | None]:
-    """Load (profile, rated_examples, learned_weights, fit_meta) from disk."""
-    if _STATE_FILE.exists():
-        try:
-            raw             = json.loads(_STATE_FILE.read_text())
-            profile         = _build_profile(raw.get("profile", _DEFAULT_PROFILE_DATA))
-            rated_examples  = raw.get("rated_examples", [])
-            learned_weights = raw.get("learned_weights")
-            fit_meta        = raw.get("fit_meta")
-            return profile, rated_examples, learned_weights, fit_meta
-        except Exception:
-            pass
-    return _build_profile(_DEFAULT_PROFILE_DATA), [], None, None
-
-
-def _save_state() -> None:
-    data = {
-        "profile": {
-            "name":             _profile.name,
-            "team_affinities":  _profile.team_affinities,
-            "time_windows": [
-                {"weekday": w.weekday, "start_hour": w.start_hour,
-                 "end_hour": w.end_hour, "timezone": str(w.timezone)}
-                for w in _profile.time_windows
-            ],
-        },
-        "rated_examples":  _rated_examples,
-        "learned_weights": _learned_weights,
-        "fit_meta":        _fit_meta,
-    }
-    _STATE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-
-
-# ── Global state (single-user) ─────────────────────────────────────────────────
-
-_profile, _rated_examples, _learned_weights, _fit_meta = _load_state()
+# ── Labels ────────────────────────────────────────────────────────────────────
 
 _STAGE_LABELS: dict[str, str] = {
     "group":       "Grupos",
@@ -160,16 +95,7 @@ _SCORER_DESCS: dict[str, str] = {
     "Espectáculo":         "Parejo + goleador = emoción desproporcionada (Vecer 2007)",
 }
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────────
-
-def _tz() -> ZoneInfo:
-    return _profile.time_windows[0].timezone if _profile.time_windows else ZoneInfo("UTC")
-
-
 _PERSONAL_SCORERS = {"Favorite Team", "Same Group", "Momento"}
-
-# ── Match archetype + narrative ───────────────────────────────────────────────
 
 _STAGE_NARRATIVE = {
     "group":       "fase de grupos",
@@ -181,9 +107,54 @@ _STAGE_NARRATIVE = {
     "final":       "la gran final",
 }
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+
+def _build_profile(data: dict) -> UserProfile:
+    windows = [
+        TimeWindow(
+            start_hour=w["start_hour"],
+            end_hour=w["end_hour"],
+            timezone=ZoneInfo(w.get("timezone", "America/Mexico_City")),
+            weekday=w.get("weekday"),
+        )
+        for w in data.get("time_windows", [])
+    ]
+    affinities = data.get("team_affinities", {})
+    return UserProfile(
+        name=data.get("name", "Fan"),
+        team_affinities={t.upper(): float(v) for t, v in affinities.items()},
+        time_windows=windows,
+    )
+
+
+_DEFAULT_PROFILE = _build_profile({"name": "Fan", "team_affinities": {}})
+
+
+def _tz_from_profile(profile: UserProfile) -> ZoneInfo:
+    return profile.time_windows[0].timezone if profile.time_windows else ZoneInfo("UTC")
+
+
+def _active_engine(learned_weights: dict | None = None):
+    engine = build_default_engine()
+    if learned_weights:
+        apply_learned_weights(engine, learned_weights)
+    return engine
+
+
+def _score_weights(learned_weights: dict | None = None) -> dict:
+    engine = _active_engine(learned_weights)
+    return {
+        s.name: {
+            "max_pts": round(s.weight * 100, 1),
+            "label":   _SCORER_LABELS.get(s.name, s.name),
+            "desc":    _SCORER_DESCS.get(s.name, ""),
+        }
+        for s in engine.scorers
+    }
+
 
 def _match_archetype(raw: dict[str, float], pred: dict | None, bd: dict[str, float]) -> dict:
-    """Derive emotional archetype from raw scorer profile."""
     r_tension = raw.get("Competitive Tension", 0)
     r_chaos   = raw.get("Chaos Potential", 0)
     r_upset   = raw.get("Upset Potential", 0)
@@ -193,13 +164,10 @@ def _match_archetype(raw: dict[str, float], pred: dict | None, bd: dict[str, flo
 
     entropy = pred.get("entropy", 0.5) if pred else 0.5
 
-    # Archetype is the dominant *character* of the match, based on raw values.
-    # Each archetype requires a clear signal from its primary dimension.
     archetypes = []
 
     if r_stage >= 0.7:
         archetypes.append(("decisive", "🔥", "Partido decisivo", r_stage))
-    # Vecer (2007): close + high-scoring = peak excitement
     if r_tension >= 0.55 and r_chaos >= 0.55:
         score = (r_tension + r_chaos) / 2
         archetypes.append(("spectacle", "🎭", "Espectáculo asegurado", score))
@@ -218,7 +186,6 @@ def _match_archetype(raw: dict[str, float], pred: dict | None, bd: dict[str, flo
         best = max(archetypes, key=lambda x: x[3])
         return {"key": best[0], "icon": best[1], "label": best[2]}
 
-    # Fallback: describe by tension level
     if r_tension >= 0.6:
         return {"key": "balanced", "icon": "⚖️", "label": "Partido equilibrado"}
     return {"key": "standard", "icon": "⚽", "label": "Partido de grupo"}
@@ -229,7 +196,6 @@ def _match_narrative(
     raw: dict[str, float], pred: dict | None,
     archetype: dict,
 ) -> str:
-    """Generate a 1-2 sentence narrative from scorer data. No LLM needed."""
     tension = raw.get("Competitive Tension", 0)
     chaos   = raw.get("Chaos Potential", 0)
     stage   = raw.get("Match Stage", 0)
@@ -237,8 +203,6 @@ def _match_narrative(
     entropy = pred.get("entropy", 0.5) if pred else 0.5
 
     parts = []
-
-    # Opening: what kind of match
     stage_name = _STAGE_NARRATIVE.get(stage_val, "")
     if stage >= 0.75:
         parts.append(f"Partido de {stage_name} con todo en juego.")
@@ -247,7 +211,6 @@ def _match_narrative(
     else:
         parts.append(f"Duelo de {stage_name}.")
 
-    # Character: what to expect
     if tension >= 0.55 and chaos >= 0.55:
         parts.append("Parejo y con goles esperados — la combinación que más emoción genera.")
     elif tension >= 0.7:
@@ -257,7 +220,6 @@ def _match_narrative(
     elif entropy < 0.6:
         parts.append("Un favorito claro, pero el fútbol siempre sorprende.")
 
-    # Color: narrative or stars
     if narr >= 0.5:
         parts.append(f"Historia previa entre {home} y {away} añade tensión.")
 
@@ -269,7 +231,6 @@ def _serialize_match(c, tz: ZoneInfo) -> dict:
     local = m.kickoff_utc.astimezone(tz)
     bd    = c.result.breakdown
 
-    # Intrinsic score = sum of non-personal scorer contributions
     intrinsic = round(sum(v for k, v in bd.items() if k not in _PERSONAL_SCORERS), 1)
     personal  = round(sum(v for k, v in bd.items() if k in _PERSONAL_SCORERS), 1)
 
@@ -278,7 +239,6 @@ def _serialize_match(c, tz: ZoneInfo) -> dict:
     archetype = _match_archetype(raw, pred, bd)
     narrative = _match_narrative(m.home, m.away, m.stage.value, raw, pred, archetype)
 
-    # H2H records
     h2h = None
     h2h_all = None
     h2h_recent = None
@@ -288,7 +248,6 @@ def _serialize_match(c, tz: ZoneInfo) -> dict:
         h2h_all = all_h2h_record(m.home, m.away)
         h2h_recent = recent_h2h_matches(m.home, m.away, n=5)
 
-    # Stars (players rated 86+)
     stars = []
     from db.query import player_overall_ratings
     ratings = player_overall_ratings()
@@ -335,72 +294,7 @@ def _serialize_match(c, tz: ZoneInfo) -> dict:
     }
 
 
-def _active_engine():
-    """Return engine with learned weights applied, if any."""
-    engine = build_default_engine()
-    if _learned_weights:
-        apply_learned_weights(engine, _learned_weights)
-    return engine
-
-
-def _score_weights() -> dict:
-    engine = _active_engine()
-    return {
-        s.name: {
-            "max_pts": round(s.weight * 100, 1),
-            "label":   _SCORER_LABELS.get(s.name, s.name),
-            "desc":    _SCORER_DESCS.get(s.name, ""),
-        }
-        for s in engine.scorers
-    }
-
-
-# ── Routes ─────────────────────────────────────────────────────────────────────
-
-_REACT_DIST = Path(__file__).parent / "static" / "dist"
-_VANILLA_HTML = Path(__file__).parent / "static" / "index.html"
-
-
-@app.get("/")
-def index():
-    # Serve React build if available, otherwise fallback to vanilla
-    react_index = _REACT_DIST / "index.html"
-    if react_index.exists():
-        return FileResponse(react_index)
-    return FileResponse(_VANILLA_HTML)
-
-
-# Serve React static assets (JS, CSS) from /assets/*
-if _REACT_DIST.exists():
-    app.mount("/assets", StaticFiles(directory=_REACT_DIST / "assets"), name="react-assets")
-
-
-@app.get("/api/profile")
-def get_profile():
-    return {
-        "name":             _profile.name,
-        "team_affinities":  _profile.team_affinities,
-        "time_windows": [
-            {"weekday": w.weekday, "start_hour": w.start_hour,
-             "end_hour": w.end_hour, "timezone": str(w.timezone)}
-            for w in _profile.time_windows
-        ],
-    }
-
-
-@app.get("/api/matches")
-def get_matches():
-    tz          = _tz()
-    all_matches = load_all_matches()
-    confirmed   = [m for m in all_matches if m.home != "TBD" and m.away != "TBD"]
-    classed     = classify_matches(confirmed, _profile, learned_weights=_learned_weights)
-    return {
-        "matches":         [_serialize_match(c, tz) for c in classed],
-        "weights":         _score_weights(),
-        "default_weights": {k: round(v, 4) for k, v in _DEFAULT_WEIGHTS.items()},
-        "has_learned":     _learned_weights is not None,
-    }
-
+# ── Pydantic models ──────────────────────────────────────────────────────────
 
 class _TimeWindowIn(BaseModel):
     weekday:    int | None = None
@@ -410,41 +304,76 @@ class _TimeWindowIn(BaseModel):
 
 
 class _ProfileIn(BaseModel):
-    name:             str
+    name:             str = "Fan"
     team_affinities:  dict[str, float] = {}
-    favorite_teams:   list[str] = []    # legacy field — migrated on read
     time_windows:     list[_TimeWindowIn] = []
 
 
-@app.put("/api/profile")
-def update_profile(req: _ProfileIn):
-    global _profile
-    windows = []
-    for w in req.time_windows:
-        try:
-            tz_obj = ZoneInfo(w.timezone)
-        except Exception:
-            tz_obj = ZoneInfo("America/Mexico_City")
-        windows.append(TimeWindow(
-            start_hour=w.start_hour, end_hour=w.end_hour,
-            timezone=tz_obj, weekday=w.weekday,
-        ))
-    affinities = req.team_affinities or {t.upper(): 1.0 for t in req.favorite_teams}
-    _profile = UserProfile(
-        name=req.name,
-        team_affinities={t.upper(): float(v) for t, v in affinities.items()},
-        time_windows=windows,
-    )
-    _save_state()
-    return get_matches()
+class _MatchesIn(BaseModel):
+    profile:          _ProfileIn = _ProfileIn()
+    learned_weights:  dict[str, float] | None = None
 
 
 class _SimIn(BaseModel):
-    seed: int | None = None
-    engine: str = "classic"  # "classic" or "fte538"
+    profile:          _ProfileIn = _ProfileIn()
+    learned_weights:  dict[str, float] | None = None
+    seed:             int | None = None
+    engine:           str = "classic"
 
 
-_MC_N_SIMS = 5000  # number of Monte Carlo iterations
+class _PreviewMatchIn(BaseModel):
+    home:             str
+    away:             str
+    stage:            str
+    profile:          _ProfileIn = _ProfileIn()
+    learned_weights:  dict[str, float] | None = None
+
+
+class _RatedMatch(BaseModel):
+    raw:    dict[str, float]
+    rating: int
+
+
+class _FitRatingsIn(BaseModel):
+    ratings: list[_RatedMatch]
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
+_REACT_DIST = Path(__file__).parent / "static" / "dist"
+_VANILLA_HTML = Path(__file__).parent / "static" / "index.html"
+
+
+@app.get("/")
+def index():
+    react_index = _REACT_DIST / "index.html"
+    if react_index.exists():
+        return FileResponse(react_index)
+    return FileResponse(_VANILLA_HTML)
+
+
+if _REACT_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=_REACT_DIST / "assets"), name="react-assets")
+
+
+@app.post("/api/matches")
+def get_matches(req: _MatchesIn = _MatchesIn()):
+    profile = _build_profile(req.profile.model_dump())
+    lw      = req.learned_weights
+    tz      = _tz_from_profile(profile)
+
+    all_matches = load_all_matches()
+    confirmed   = [m for m in all_matches if m.home != "TBD" and m.away != "TBD"]
+    classed     = classify_matches(confirmed, profile, learned_weights=lw)
+    return {
+        "matches":         [_serialize_match(c, tz) for c in classed],
+        "weights":         _score_weights(lw),
+        "default_weights": {k: round(v, 4) for k, v in _DEFAULT_WEIGHTS.items()},
+        "has_learned":     lw is not None,
+    }
+
+
+_MC_N_SIMS = 5000
 
 
 @app.post("/api/simulate")
@@ -452,30 +381,30 @@ def simulate(req: _SimIn = _SimIn()):
     from classifier.simulation import run_monte_carlo, SimEngine
     from classifier.models import Stage
 
-    engine      = SimEngine.FTE538 if req.engine == "fte538" else SimEngine.CLASSIC
+    profile = _build_profile(req.profile.model_dump())
+    lw      = req.learned_weights
+    tz      = _tz_from_profile(profile)
+
+    engine_type = SimEngine.FTE538 if req.engine == "fte538" else SimEngine.CLASSIC
     seed        = req.seed if req.seed is not None else random.randint(0, 9999)
-    tz          = _tz()
     all_matches = load_all_matches()
     confirmed   = {m for m in all_matches if m.home != "TBD" and m.away != "TBD"}
 
-    mc  = run_monte_carlo(all_matches, n=_MC_N_SIMS, seed=seed, engine=engine)
-    sim = mc.representative  # most MC-aligned run — source of truth for all displayed results
+    mc  = run_monte_carlo(all_matches, n=_MC_N_SIMS, seed=seed, engine=engine_type)
+    sim = mc.representative
     n   = mc.n_sims
 
-    # ── Single-run lookup tables ───────────────────────────────────────────────
     ko_by_num: dict[int, "Match"] = {
         int(m.match_id[1:]): m
         for m in sim.matches
         if m.stage != Stage.GROUP
     }
 
-    # ── MC overlays (probabilities only — not used to select displayed teams) ──
     champion_odds = sorted(
         [{"team": t, "pct": round(c / n, 3)} for t, c in mc.champion_counts.items()],
         key=lambda x: x["pct"], reverse=True,
     )
 
-    # ── Bracket: built entirely from the single simulation run ─────────────────
     ko_stages = [
         ("RONDA DE 32",  list(range(73, 89))),
         ("16VOS",        list(range(89, 97))),
@@ -491,8 +420,6 @@ def simulate(req: _SimIn = _SimIn()):
             m = ko_by_num.get(mn)
             if not m:
                 continue
-            home   = m.home
-            away   = m.away
             winner = sim.match_winners.get(mn, "?")
             loser  = sim.match_losers.get(mn, "?")
             score  = sim.match_scores.get(mn)
@@ -502,8 +429,8 @@ def simulate(req: _SimIn = _SimIn()):
             }
             ms.append({
                 "match_num":   mn,
-                "home":        home,
-                "away":        away,
+                "home":        m.home,
+                "away":        m.away,
                 "winner":      winner,
                 "loser":       loser,
                 "is_final":    mn == 104,
@@ -526,8 +453,6 @@ def simulate(req: _SimIn = _SimIn()):
         for grp, table in sorted(sim.standings.items())
     ]
 
-    # ── Team tournament paths ─────────────────────────────────────────────────
-    # For each team, compute probability of reaching each KO round
     _round_ranges = {
         "R32": range(73, 89), "R16": range(89, 97), "QF": range(97, 101),
         "SF": range(101, 103), "F": [104],
@@ -547,26 +472,20 @@ def simulate(req: _SimIn = _SimIn()):
         path["Champ"] = round(mc.champion_counts.get(team, 0) / n, 3)
         team_paths[team] = path
 
-    # ── Match rarity (for KO matches) ────────────────────────────────────────
-    # How often does this specific home-away pairing occur across simulations?
     matchup_rarity: dict[int, float] = {}
     for mn in range(73, 105):
         m_obj = ko_by_num.get(mn)
         if not m_obj:
             continue
         pc = mc.match_participant_counts.get(mn, {})
-        # Both teams need to appear in this slot — joint probability
         h_pct = pc.get(m_obj.home, 0) / n
         a_pct = pc.get(m_obj.away, 0) / n
         matchup_rarity[mn] = round(min(h_pct, a_pct), 3)
 
-    # ── Unified match list ─────────────────────────────────────────────────────
-    # Representative scores for display
     predicted_scores: dict[str, tuple[int, int]] = {
         f"M{mn:03d}": (hg, ag)
         for mn, (hg, ag) in sim.match_scores.items()
     }
-    # Average goals across all sims for scoring (smoother than single-run noise)
     avg_goals_for_scoring: dict[str, tuple[float, float]] | None = None
     if mc.match_avg_goals:
         avg_goals_for_scoring = {
@@ -578,9 +497,9 @@ def simulate(req: _SimIn = _SimIn()):
         list(confirmed) + list(ko_by_num.values()),
         key=lambda m: m.match_id,
     )
-    classed = classify_matches(all_sim_matches, _profile,
+    classed = classify_matches(all_sim_matches, profile,
                                avg_goals_for_scoring or predicted_scores,
-                               learned_weights=_learned_weights)
+                               learned_weights=lw)
 
     def _sim_entry(c) -> dict:
         mn = int(c.result.match.match_id[1:])
@@ -595,7 +514,6 @@ def simulate(req: _SimIn = _SimIn()):
                 d["predicted_winner"] = c.result.match.home
             elif ag > hg:
                 d["predicted_winner"] = c.result.match.away
-        # KO match extras
         if mn >= 73:
             d["rarity"] = matchup_rarity.get(mn)
             d["home_path"] = team_paths.get(c.result.match.home)
@@ -610,9 +528,8 @@ def simulate(req: _SimIn = _SimIn()):
         "standings":      standings,
         "champion_odds":  champion_odds,
         "team_paths":     team_paths,
-        "weights":        _score_weights(),
+        "weights":        _score_weights(lw),
     }
-
 
 
 @app.get("/api/weights")
@@ -620,7 +537,7 @@ def get_weights():
     return _score_weights()
 
 
-# ── Preference learning ────────────────────────────────────────────────────────
+# ── Preference learning ──────────────────────────────────────────────────────
 
 @app.get("/api/learn/matches")
 def get_learn_matches(n: int = 15, seed: int | None = None, exclude: str = "", years: str = ""):
@@ -628,96 +545,32 @@ def get_learn_matches(n: int = 15, seed: int | None = None, exclude: str = "", y
     exclude_ids = [x for x in exclude.split(",") if x]
     year_list = [int(y) for y in years.split(",") if y.strip().isdigit()] or None
     matches = sample_historical_matches(
-        _profile, n=n, seed=seed, exclude_ids=exclude_ids, years=year_list,
-        rated_examples=_rated_examples if _rated_examples else None,
+        _DEFAULT_PROFILE, n=n, seed=seed, exclude_ids=exclude_ids, years=year_list,
     )
     return {"matches": matches, "total": len(matches)}
 
 
-class _RatedMatch(BaseModel):
-    raw:    dict[str, float]
-    rating: int   # 1–10
-
-
-class _FitRatingsIn(BaseModel):
-    ratings: list[_RatedMatch]
-
-
 @app.post("/api/learn/fit-ratings")
 def learn_fit_ratings(req: _FitRatingsIn):
-    global _rated_examples, _learned_weights, _fit_meta
     from classifier.learning import fit_from_ratings
 
-    new_examples = [{"raw": rm.raw, "rating": rm.rating} for rm in req.ratings]
-
-    # Deduplicate by (raw vector hash) before accumulating
-    existing_keys = {
-        tuple(sorted(e["raw"].items())) for e in _rated_examples
-    }
-    for ex in new_examples:
-        key = tuple(sorted(ex["raw"].items()))
-        if key not in existing_keys:
-            _rated_examples.append(ex)
-            existing_keys.add(key)
-
-    result = fit_from_ratings(_rated_examples)
-
-    _learned_weights = result["weights"]
-    _fit_meta = {
-        "n":               result["rating_stats"].get("n", 0),
-        "mean_rating":     result["rating_stats"].get("mean"),
-        "confidence":      result.get("confidence", 0.0),
-        "top_features":    [f["scorer"] for f in result.get("top_features", [])[:3]],
-        "last_fit":        datetime.now(timezone.utc).isoformat(),
-    }
-    _save_state()
+    examples = [{"raw": rm.raw, "rating": rm.rating} for rm in req.ratings]
+    result = fit_from_ratings(examples)
 
     scorer_labels = {s.name: _SCORER_LABELS.get(s.name, s.name)
                      for s in build_default_engine().scorers}
     result["scorer_labels"] = scorer_labels
-    result["total_examples"] = len(_rated_examples)
+    result["total_examples"] = len(examples)
     return result
-
-
-@app.delete("/api/learn/ratings")
-def reset_ratings():
-    """Clear all accumulated ratings and revert to default weights."""
-    global _rated_examples, _learned_weights, _fit_meta
-    _rated_examples  = []
-    _learned_weights = None
-    _fit_meta        = None
-    _save_state()
-    return {"status": "reset", "message": "Ratings borrados. Pesos vueltos a default."}
-
-
-@app.get("/api/learn/state")
-def get_learn_state():
-    """Return current learning state: n_examples, learned_weights, fit_meta."""
-    from classifier.learning import DEFAULT_WEIGHTS
-    return {
-        "n_examples":       len(_rated_examples),
-        "has_learned":      _learned_weights is not None,
-        "learned_weights":  _learned_weights,
-        "default_weights":  DEFAULT_WEIGHTS,
-        "fit_meta":         _fit_meta,
-        "weight_delta":     {
-            k: round(_learned_weights[k] - DEFAULT_WEIGHTS.get(k, 0.0), 4)
-            for k in (_learned_weights or {})
-        } if _learned_weights else {},
-    }
-
-
-class _PreviewMatchIn(BaseModel):
-    home:  str
-    away:  str
-    stage: str
 
 
 @app.post("/api/matches/preview")
 def preview_match(req: _PreviewMatchIn):
-    """Classify an ad-hoc match and return full serialized result."""
     from classifier.models import Match, Stage
     from db.query import load_squads
+
+    profile = _build_profile(req.profile.model_dump())
+    lw      = req.learned_weights
 
     home = req.home.upper()
     away = req.away.upper()
@@ -730,7 +583,6 @@ def preview_match(req: _PreviewMatchIn):
     if home == away:
         return {"error": "Home and away must be different teams"}
 
-    # Build a synthetic match
     squads = load_squads()
     m = Match(
         match_id=f"PREVIEW_{home}_{away}",
@@ -743,14 +595,14 @@ def preview_match(req: _PreviewMatchIn):
         away_squad=squads.get(away),
     )
 
-    classed = classify_matches([m], _profile, learned_weights=_learned_weights)
+    classed = classify_matches([m], profile, learned_weights=lw)
     if not classed:
         return {"error": "Could not classify match"}
 
-    tz = _tz()
+    tz = _tz_from_profile(profile)
     return {
         "match":   _serialize_match(classed[0], tz),
-        "weights": _score_weights(),
+        "weights": _score_weights(lw),
     }
 
 
@@ -760,7 +612,7 @@ def get_teams():
     return load_teams()
 
 
-# ── LLM integration ───────────────────────────────────────────────────────────
+# ── LLM integration ──────────────────────────────────────────────────────────
 
 from classifier.llm import LMStudioClient as _LMStudioClient
 
@@ -773,15 +625,17 @@ def llm_status():
 
 
 class _LLMClassifyIn(BaseModel):
-    match_ids: list[str] | None = None   # None = all confirmed matches
+    match_ids: list[str] | None = None
+    profile:   _ProfileIn = _ProfileIn()
 
 
 @app.post("/api/llm/classify")
 async def llm_classify(req: _LLMClassifyIn = _LLMClassifyIn()):
-    tz          = _tz()
+    profile     = _build_profile(req.profile.model_dump())
+    tz          = _tz_from_profile(profile)
     all_matches = load_all_matches()
     confirmed   = [m for m in all_matches if m.home != "TBD" and m.away != "TBD"]
-    classed     = classify_matches(confirmed, _profile)
+    classed     = classify_matches(confirmed, profile)
 
     match_data: list[dict] = []
     for c in classed:
@@ -801,8 +655,8 @@ async def llm_classify(req: _LLMClassifyIn = _LLMClassifyIn()):
         })
 
     profile_data = {
-        "name":             _profile.name,
-        "team_affinities":  _profile.team_affinities,
+        "name":             profile.name,
+        "team_affinities":  profile.team_affinities,
     }
 
     try:
@@ -815,7 +669,6 @@ async def llm_classify(req: _LLMClassifyIn = _LLMClassifyIn()):
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail=f"LM Studio error: {exc}")
 
-    # Normalize match_ids from LLM (models sometimes prepend ": " or add spaces)
     import re as _re
     def _norm_mid(s: str) -> str:
         m = _re.search(r'M\d+', str(s).upper())
@@ -838,13 +691,13 @@ async def llm_classify(req: _LLMClassifyIn = _LLMClassifyIn()):
 async def llm_explain(match_id: str):
     from fastapi import HTTPException
 
-    tz          = _tz()
+    tz          = ZoneInfo("UTC")
     all_matches = load_all_matches()
     target      = next((m for m in all_matches if m.match_id == match_id), None)
     if not target:
         raise HTTPException(status_code=404, detail="Match not found")
 
-    classed = classify_matches([target], _profile)
+    classed = classify_matches([target], _DEFAULT_PROFILE)
     if not classed:
         raise HTTPException(status_code=404, detail="Could not classify match")
 
@@ -863,10 +716,7 @@ async def llm_explain(match_id: str):
         "score":         round(c.result.total_score, 1),
         "raw_by_scorer": {k: round(v, 3) for k, v in c.result.raw_by_scorer.items()},
     }
-    profile_data = {
-        "name":             _profile.name,
-        "team_affinities":  _profile.team_affinities,
-    }
+    profile_data = {"name": "Fan", "team_affinities": {}}
 
     try:
         loop = asyncio.get_event_loop()
@@ -878,5 +728,3 @@ async def llm_explain(match_id: str):
         raise HTTPException(status_code=503, detail=f"LM Studio error: {exc}")
 
     return {"match_id": match_id, "explanation": explanation}
-
-

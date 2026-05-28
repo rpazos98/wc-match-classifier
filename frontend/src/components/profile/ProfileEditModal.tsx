@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Team, ProfileInput } from '../../types';
-import { getTeams, updateProfile } from '../../api/profile';
+import type { Team, Profile } from '../../types';
+import { getTeams } from '../../api/profile';
 import { useAppState, useAppDispatch } from '../../state/AppContext';
 import { fl } from '../../utils/flags';
 
@@ -33,9 +33,10 @@ function tierClass(tier: string): string {
 interface Props {
   section: EditSection;
   onClose: () => void;
+  onSave: (profile: Profile) => void;
 }
 
-export default function ProfileEditModal({ section, onClose }: Props) {
+export default function ProfileEditModal({ section, onClose, onSave }: Props) {
   const dispatch = useAppDispatch();
   const { profile } = useAppState();
 
@@ -92,34 +93,18 @@ export default function ProfileEditModal({ section, onClose }: Props) {
       }
     }
 
-    const payload: ProfileInput = {
+    const newProfile: Profile = {
       name: section === 'name' ? (name.trim() || 'Fan') : (profile?.name ?? 'Fan'),
       team_affinities: teamAffinities,
       time_windows: profile?.time_windows ?? [],
     };
 
-    try {
-      const data = await updateProfile(payload);
-      dispatch({
-        type: 'SET_PROFILE',
-        profile: {
-          name: payload.name,
-          team_affinities: teamAffinities,
-          time_windows: payload.time_windows,
-        },
-      });
-      dispatch({
-        type: 'SET_MATCHES',
-        matches: data.matches,
-        weights: data.weights,
-        defaultWeights: data.default_weights,
-        hasLearned: data.has_learned,
-      });
-      onClose();
-    } catch { /* */ } finally {
-      setSaving(false);
-    }
-  }, [section, name, tierMap, profile, dispatch, onClose]);
+    // Save to localStorage + update app state
+    onSave(newProfile);
+    dispatch({ type: 'SET_PROFILE', profile: newProfile });
+    setSaving(false);
+    onClose();
+  }, [section, name, tierMap, profile, dispatch, onClose, onSave]);
 
   const teamsByConf: Record<string, Team[]> = {};
   for (const t of teams) {

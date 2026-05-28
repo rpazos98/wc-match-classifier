@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Team, Match } from '../../types';
 import { getTeams } from '../../api/profile';
 import { previewMatch } from '../../api/matches';
+import { loadProfile, loadLearnedWeights } from '../../api/storage';
 import { fl } from '../../utils/flags';
 import { scoreColor } from '../../utils/labels';
 import ScoreRing from '../detail/ScoreRing';
@@ -52,7 +53,7 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
     setLoading(true);
     setResult(null);
     try {
-      const data = await previewMatch(home, away, stage);
+      const data = await previewMatch(home, away, stage, loadProfile(), loadLearnedWeights());
       if (data.error) {
         setError(data.error);
       } else {

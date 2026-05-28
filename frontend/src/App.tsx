@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from 'react';
 import { useAppState, useAppDispatch } from './state/AppContext';
 import { ToastProvider, useToast } from './components/common/Toast';
+import LoadingBar from './components/common/LoadingBar';
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
 import TabBar from './components/layout/TabBar';
@@ -14,6 +15,7 @@ import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
 import { simulate } from './api/matches';
+import { loadLearnedWeights } from './api/storage';
 
 function AppInner() {
   const state = useAppState();
@@ -26,9 +28,18 @@ function AppInner() {
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
-  // SWR: auto-fetch + cache matches and profile
-  const { matchData, error: matchError, refresh: refreshMatches } = useMatches();
-  const { profile, error: profileError } = useProfile();
+  // Profile from localStorage
+  const { profile, update: updateProfile } = useProfile();
+
+  // SWR: auto-fetch + cache matches (depends on profile)
+  const { matchData, error: matchError, isLoading: matchesLoading, refresh: refreshMatches } = useMatches(profile);
+
+  // Sync profile → app state
+  useEffect(() => {
+    if (profile) {
+      dispatch({ type: 'SET_PROFILE', profile });
+    }
+  }, [profile, dispatch]);
 
   // Sync SWR data → app state (skip when simulated — sim has its own matches)
   const { simulated } = state;
@@ -43,12 +54,6 @@ function AppInner() {
       });
     }
   }, [matchData, dispatch, simulated]);
-
-  useEffect(() => {
-    if (profile) {
-      dispatch({ type: 'SET_PROFILE', profile });
-    }
-  }, [profile, dispatch]);
 
   // Auto-open teams editor on first visit (no teams configured)
   useEffect(() => {
@@ -70,17 +75,17 @@ function AppInner() {
   }, [state.matches, state.selectedId, dispatch]);
 
   useEffect(() => {
-    if (matchError || profileError) {
-      const msg = (matchError || profileError)?.message ?? 'Error desconocido';
+    if (matchError) {
+      const msg = matchError?.message ?? 'Error desconocido';
       toast('\u26A0 Error al cargar: ' + msg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchError, profileError]);
+  }, [matchError]);
 
   const handleSimulate = useCallback(async () => {
     try {
       dispatch({ type: 'SET_SIMULATING' });
-      const data = await simulate(undefined, state.simEngine);
+      const data = await simulate(profile, loadLearnedWeights(), undefined, state.simEngine);
       const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
       const finalMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 104);
       const thirdMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 103);
@@ -107,7 +112,7 @@ function AppInner() {
       const msg = err instanceof Error ? err.message : String(err);
       toast('\u26A0 Error al simular: ' + msg);
     }
-  }, [dispatch, toast, state.simEngine]);
+  }, [dispatch, toast, state.simEngine, profile]);
 
   const handleLearnClose = useCallback(() => {
     setLearnOpen(false);
@@ -116,11 +121,14 @@ function AppInner() {
 
   const handleEditClose = useCallback(() => {
     setEditSection(null);
-    refreshMatches();
-  }, [refreshMatches]);
+  }, []);
 
   return (
     <>
+      <LoadingBar
+        active={matchesLoading || state.simulating}
+        label={state.simulating ? 'Simulando 5000 brackets...' : matchesLoading ? 'Clasificando partidos...' : undefined}
+      />
       <Header
         onOpenProfile={() => setEditSection('teams')}
         onSimulate={handleSimulate}
@@ -149,6 +157,7 @@ function AppInner() {
         <ProfileEditModal
           section={editSection}
           onClose={handleEditClose}
+          onSave={updateProfile}
         />
       )}
       <LearnModal

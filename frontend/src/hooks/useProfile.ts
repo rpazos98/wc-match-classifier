@@ -1,18 +1,14 @@
-import useSWR from 'swr';
+import { useState, useCallback } from 'react';
 import type { Profile } from '../types';
-import { get } from '../api/client';
-
-const fetcher = () => get<Profile>('/api/profile');
+import { loadProfile, saveProfile } from '../api/storage';
 
 export function useProfile() {
-  const { data, error, isLoading, mutate } = useSWR('/api/profile', fetcher, {
-    revalidateOnFocus: false,
-  });
+  const [profile, setProfile] = useState<Profile>(loadProfile);
 
-  return {
-    profile: data ?? null,
-    error,
-    isLoading,
-    refresh: mutate,
-  };
+  const update = useCallback((p: Profile) => {
+    saveProfile(p);
+    setProfile(p);
+  }, []);
+
+  return { profile, update };
 }

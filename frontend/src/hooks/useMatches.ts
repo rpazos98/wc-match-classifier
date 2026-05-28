@@ -1,13 +1,16 @@
 import useSWR from 'swr';
-import type { MatchesResponse } from '../types';
-import { get } from '../api/client';
+import type { Profile } from '../types';
+import { getMatches } from '../api/matches';
+import { loadLearnedWeights } from '../api/storage';
 
-const fetcher = () => get<MatchesResponse>('/api/matches');
+export function useMatches(profile: Profile | null) {
+  const key = profile ? ['matches', JSON.stringify(profile.team_affinities)] : null;
 
-export function useMatches() {
-  const { data, error, isLoading, mutate } = useSWR('/api/matches', fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data, error, isLoading, mutate } = useSWR(
+    key,
+    () => getMatches(profile!, loadLearnedWeights()),
+    { revalidateOnFocus: false },
+  );
 
   return {
     matchData: data ?? null,
