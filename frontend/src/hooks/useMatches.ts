@@ -28,6 +28,7 @@ export function useMatches(profile: Profile | null) {
     weights: matchData?.weights ?? {},
     defaultWeights: matchData?.default_weights ?? {},
     hasLearned: matchData?.has_learned ?? false,
+    groups: raw?.groups ?? null,
     error,
     isLoading,
     refresh: mutate,

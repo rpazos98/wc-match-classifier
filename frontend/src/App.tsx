@@ -14,10 +14,13 @@ import ProfileEditModal from './components/profile/ProfileEditModal';
 import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
-import { simulate, loadPrecomputedSimulation } from './api/matches';
-import { loadLearnedWeights } from './api/storage';
+import { loadPrecomputedSimulation } from './api/matches';
 import { applyPersonalScoring } from './scoring/personal';
+import { useSimulation, convertToSimulationResponse } from './simulation';
+import type { TeamProfile, GroupMatch } from './simulation';
 import type { SimulationResponse, Profile } from './types';
+
+const BASE = import.meta.env.BASE_URL ?? '/';
 
 function AppInner() {
   const state = useAppState();
@@ -32,11 +35,27 @@ function AppInner() {
   const precomputedLoaded = useRef(false);
   const rawSimData = useRef<SimulationResponse | null>(null);
 
+  // Simulation data loaded once
+  const [teamProfiles, setTeamProfiles] = useState<Record<string, TeamProfile> | null>(null);
+  const [teamGroups, setTeamGroups] = useState<Record<string, string> | null>(null);
+  const [groupMatches, setGroupMatches] = useState<GroupMatch[] | null>(null);
+
+  // FE simulation worker
+  const sim = useSimulation();
+
   // Profile from localStorage
   const { profile, update: updateProfile } = useProfile();
 
   // SWR: auto-fetch + cache matches (depends on profile)
-  const { matchData, error: matchError, isLoading: matchesLoading, refresh: refreshMatches } = useMatches(profile);
+  const { matchData, groups: rawGroups, error: matchError, isLoading: matchesLoading, refresh: refreshMatches } = useMatches(profile);
+
+  // Load team profiles + groups for FE simulation
+  useEffect(() => {
+    fetch(`${BASE}data/team_profiles.json`)
+      .then(r => r.json())
+      .then(setTeamProfiles)
+      .catch(() => {});
+  }, []);
 
   // Sync profile → app state
   useEffect(() => {
@@ -59,6 +78,20 @@ function AppInner() {
     }
   }, [matchData, dispatch, simulated]);
 
+  // Extract group matches + teamGroups from matchData when available
+  useEffect(() => {
+    if (matchData) {
+      const gm = matchData.matches
+        .filter(m => m.stage === 'group')
+        .map(m => ({ match_id: m.match_id, home: m.home, away: m.away }));
+      setGroupMatches(gm);
+    }
+  }, [matchData]);
+
+  useEffect(() => {
+    if (rawGroups) setTeamGroups(rawGroups);
+  }, [rawGroups]);
+
   // Load pre-computed simulation on startup
   useEffect(() => {
     if (precomputedLoaded.current) return;
@@ -79,6 +112,25 @@ function AppInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
+
+  // When FE simulation completes, convert + apply
+  useEffect(() => {
+    if (!sim.result || !matchData || !profile) return;
+
+    const data = convertToSimulationResponse(
+      sim.result,
+      matchData.matches.filter(m => m.stage === 'group'),
+      sim.result.nSims, // seed not tracked separately; use nSims placeholder
+      matchData.weights,
+      matchData.default_weights,
+    );
+
+    rawSimData.current = data;
+    applySimulation(data, profile);
+    dispatch({ type: 'SET_TAB', tab: 'bracket' });
+    toast(`Simulacion completa — ${sim.result.nSims} sims en ${Math.round(sim.elapsedMs ?? 0)}ms`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sim.result]);
 
   function applySimulation(data: SimulationResponse, prof: Profile) {
     const dw = matchData?.default_weights ?? {};
@@ -135,21 +187,16 @@ function AppInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchError]);
 
-  const handleSimulate = useCallback(async () => {
-    try {
-      dispatch({ type: 'SET_SIMULATING' });
-      const data = await simulate(profile, loadLearnedWeights(), undefined, state.simEngine);
-      rawSimData.current = data;
-      applySimulation(data, profile);
-      dispatch({ type: 'SET_TAB', tab: 'bracket' });
-      toast(`Simulacion completa (semilla ${data.seed})`);
-    } catch (err) {
-      dispatch({ type: 'CLEAR_BRACKET' });
-      const msg = err instanceof Error ? err.message : String(err);
-      toast('\u26A0 Error al simular: ' + msg);
+  const handleSimulate = useCallback(() => {
+    if (!teamProfiles || !teamGroups || !groupMatches) {
+      toast('\u26A0 Datos no cargados aún');
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, toast, state.simEngine, profile]);
+
+    dispatch({ type: 'SET_SIMULATING' });
+    const seed = Date.now();
+    sim.run(groupMatches, teamGroups, teamProfiles, 5000, seed, state.simEngine);
+  }, [dispatch, toast, state.simEngine, teamProfiles, teamGroups, groupMatches, sim]);
 
   const handleLearnClose = useCallback(() => {
     setLearnOpen(false);
@@ -160,11 +207,20 @@ function AppInner() {
     setEditSection(null);
   }, []);
 
+  const isSimulating = state.simulating || sim.running;
+  const simProgress = sim.running ? Math.round(sim.progress * 100) : 0;
+
   return (
     <>
       <LoadingBar
-        active={matchesLoading || state.simulating}
-        label={state.simulating ? 'Simulando 5000 brackets...' : matchesLoading ? 'Clasificando partidos...' : undefined}
+        active={matchesLoading || isSimulating}
+        label={
+          isSimulating
+            ? `Simulando 5000 brackets... ${simProgress}%`
+            : matchesLoading
+              ? 'Clasificando partidos...'
+              : undefined
+        }
       />
       <Header
         onOpenProfile={() => setEditSection('teams')}
