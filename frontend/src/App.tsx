@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useAppState, useAppDispatch } from './state/AppContext';
 import { ToastProvider, useToast } from './components/common/Toast';
 import LoadingBar from './components/common/LoadingBar';
@@ -14,8 +14,9 @@ import ProfileEditModal from './components/profile/ProfileEditModal';
 import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
-import { simulate } from './api/matches';
+import { simulate, loadPrecomputedSimulation } from './api/matches';
 import { loadLearnedWeights } from './api/storage';
+import type { SimulationResponse } from './types';
 
 function AppInner() {
   const state = useAppState();
@@ -27,6 +28,7 @@ function AppInner() {
   const [learnOpen, setLearnOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  const precomputedLoaded = useRef(false);
 
   // Profile from localStorage
   const { profile, update: updateProfile } = useProfile();
@@ -54,6 +56,38 @@ function AppInner() {
       });
     }
   }, [matchData, dispatch, simulated]);
+
+  // Load pre-computed simulation on startup
+  useEffect(() => {
+    if (precomputedLoaded.current) return;
+    precomputedLoaded.current = true;
+    loadPrecomputedSimulation()
+      .then((data) => applySimulation(data))
+      .catch(() => { /* pre-computed not available, user can simulate manually */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function applySimulation(data: SimulationResponse) {
+    const allBracketMatches = data.bracket_rounds.flatMap((r) => r.matches);
+    const finalMatch = allBracketMatches.find((m) => m.match_num === 104);
+    const thirdMatch = allBracketMatches.find((m) => m.match_num === 103);
+
+    dispatch({
+      type: 'SET_BRACKET',
+      bracketData: {
+        bracket_rounds: data.bracket_rounds,
+        standings: data.standings,
+        champion_odds: data.champion_odds,
+        n_sims: data.n_sims,
+        champion: finalMatch?.winner ?? null,
+        runner_up: finalMatch?.loser ?? null,
+        third_place: thirdMatch?.winner ?? null,
+      },
+      seed: data.seed,
+      matches: data.matches,
+      weights: data.weights,
+    });
+  }
 
   // Auto-open teams editor on first visit (no teams configured)
   useEffect(() => {
@@ -86,25 +120,7 @@ function AppInner() {
     try {
       dispatch({ type: 'SET_SIMULATING' });
       const data = await simulate(profile, loadLearnedWeights(), undefined, state.simEngine);
-      const allBracketMatches = data.bracket_rounds.flatMap((r: { matches: Array<{ match_num: number; winner: string; loser: string; is_final?: boolean; is_third?: boolean }> }) => r.matches);
-      const finalMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 104);
-      const thirdMatch = allBracketMatches.find((m: { match_num: number }) => m.match_num === 103);
-
-      dispatch({
-        type: 'SET_BRACKET',
-        bracketData: {
-          bracket_rounds: data.bracket_rounds,
-          standings: data.standings,
-          champion_odds: data.champion_odds,
-          n_sims: data.n_sims,
-          champion: finalMatch?.winner ?? null,
-          runner_up: finalMatch?.loser ?? null,
-          third_place: thirdMatch?.winner ?? null,
-        },
-        seed: data.seed,
-        matches: data.matches,
-        weights: data.weights,
-      });
+      applySimulation(data);
       dispatch({ type: 'SET_TAB', tab: 'bracket' });
       toast(`Simulacion completa (semilla ${data.seed})`);
     } catch (err) {
@@ -112,6 +128,7 @@ function AppInner() {
       const msg = err instanceof Error ? err.message : String(err);
       toast('\u26A0 Error al simular: ' + msg);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, toast, state.simEngine, profile]);
 
   const handleLearnClose = useCallback(() => {
