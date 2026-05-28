@@ -15,7 +15,7 @@ _GROUP_MD_SCORES = {1: 0.20, 2: 0.28, 3: 0.42}
 
 _STAGE_LABELS: dict[Stage, str] = {
     Stage.GROUP: "Fase de grupos",
-    Stage.R32:   "Ronda de 32",
+    Stage.R32:   "16vos de final",
     Stage.R16:   "Octavos de final",
     Stage.QF:    "Cuartos de final",
     Stage.SF:    "Semifinal",

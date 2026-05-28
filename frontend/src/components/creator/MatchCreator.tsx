@@ -11,7 +11,7 @@ import ProbabilityBar from '../detail/ProbabilityBar';
 
 const STAGES = [
   { value: 'group', label: 'Fase de Grupos' },
-  { value: 'r32', label: 'Ronda de 32' },
+  { value: 'r32', label: '16vos de Final' },
   { value: 'r16', label: 'Octavos de Final' },
   { value: 'qf', label: 'Cuartos de Final' },
   { value: 'sf', label: 'Semifinal' },

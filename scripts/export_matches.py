@@ -74,8 +74,8 @@ def export_simulation(all_matches, confirmed):
     )
 
     ko_stages = [
-        ("RONDA DE 32",  list(range(73, 89))),
-        ("16VOS",        list(range(89, 97))),
+        ("16VOS",        list(range(73, 89))),
+        ("OCTAVOS",      list(range(89, 97))),
         ("CUARTOS",      list(range(97, 101))),
         ("SEMIFINALES",  list(range(101, 103))),
         ("TERCER LUGAR", [103]),

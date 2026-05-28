@@ -123,7 +123,7 @@ def _fmt_match_header(match: Match, profile: UserProfile) -> str:
     date_str  = local_dt.strftime("%d %b %Y %H:%M")
     tz_abbr   = local_dt.strftime("%Z")
     stage_map = {
-        Stage.GROUP: "Fase Grupos", Stage.R32: "Ronda 32",
+        Stage.GROUP: "Fase Grupos", Stage.R32: "16vos",
         Stage.R16: "Octavos",       Stage.QF: "Cuartos",
         Stage.SF: "Semifinal",      Stage.THIRD: "3er Lugar",
         Stage.FINAL: "FINAL",

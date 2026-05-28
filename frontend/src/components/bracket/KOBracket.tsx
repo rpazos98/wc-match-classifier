@@ -86,8 +86,8 @@ export default function KOBracket({ rounds, champion, runnerUp, thirdPlace }: Pr
     <>
       <div className="bracket-section-title">Fase Eliminatoria</div>
       <div className="ko-bracket">
-        <RoundColumn title="Ronda 32" matches={pick(R32_NUMS)} pairSize={2} />
-        <RoundColumn title="16vos" matches={pick(R16_NUMS)} pairSize={2} />
+        <RoundColumn title="16vos" matches={pick(R32_NUMS)} pairSize={2} />
+        <RoundColumn title="Octavos" matches={pick(R16_NUMS)} pairSize={2} />
         <RoundColumn title="Cuartos" matches={pick(QF_NUMS)} pairSize={2} />
         <RoundColumn title="Semis" matches={pick(SF_NUMS)} pairSize={2} />
 

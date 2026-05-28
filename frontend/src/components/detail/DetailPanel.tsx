@@ -132,8 +132,8 @@ function SimPath({
           : 'var(--green)';
 
   const pathLabels: Record<string, string> = {
-    R32: 'R32',
-    R16: 'R16',
+    R32: '16vos',
+    R16: '8vos',
     QF: 'QF',
     SF: 'SF',
     F: 'Final',

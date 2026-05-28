@@ -64,8 +64,8 @@ app.add_middleware(
 
 _STAGE_LABELS: dict[str, str] = {
     "group":       "Grupos",
-    "r32":         "Ronda 32",
-    "r16":         "16vos",
+    "r32":         "16vos",
+    "r16":         "Octavos",
     "qf":          "Cuartos",
     "sf":          "Semifinal",
     "third_place": "3er Lugar",
@@ -102,7 +102,7 @@ _PERSONAL_SCORERS = {"Favorite Team", "Same Group", "Momento"}
 
 _STAGE_NARRATIVE = {
     "group":       "fase de grupos",
-    "r32":         "ronda de 32",
+    "r32":         "16vos de final",
     "r16":         "octavos de final",
     "qf":          "cuartos de final",
     "sf":          "semifinal",
@@ -409,8 +409,8 @@ def simulate(req: _SimIn = _SimIn()):
     )
 
     ko_stages = [
-        ("RONDA DE 32",  list(range(73, 89))),
-        ("16VOS",        list(range(89, 97))),
+        ("16VOS",        list(range(73, 89))),
+        ("OCTAVOS",      list(range(89, 97))),
         ("CUARTOS",      list(range(97, 101))),
         ("SEMIFINALES",  list(range(101, 103))),
         ("TERCER LUGAR", [103]),

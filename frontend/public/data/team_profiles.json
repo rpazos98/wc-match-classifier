@@ -1,0 +1,386 @@
+{
+  "ALG": {
+    "elo": 1757.9,
+    "quality": 0.56,
+    "form": 0.091,
+    "attack": 0.7291,
+    "defense": 0.629,
+    "confederation": "CAF"
+  },
+  "ARG": {
+    "elo": 1977.1,
+    "quality": 0.8,
+    "form": -0.0467,
+    "attack": 0.8002,
+    "defense": 0.6431,
+    "confederation": "CONMEBOL"
+  },
+  "AUS": {
+    "elo": 1795.3,
+    "quality": 0.308,
+    "form": 0.0395,
+    "attack": 0.5394,
+    "defense": 0.6687,
+    "confederation": "AFC"
+  },
+  "AUT": {
+    "elo": 1725.5,
+    "quality": 0.564,
+    "form": 0.0046,
+    "attack": 0.6033,
+    "defense": 0.7199,
+    "confederation": "UEFA"
+  },
+  "BEL": {
+    "elo": 1805.5,
+    "quality": 0.748,
+    "form": 0.0109,
+    "attack": 0.8157,
+    "defense": 0.4886,
+    "confederation": "UEFA"
+  },
+  "BIH": {
+    "elo": 1585.1,
+    "quality": 0.456,
+    "form": 0.1023,
+    "attack": 0.6869,
+    "defense": 0.5475,
+    "confederation": "UEFA"
+  },
+  "BRA": {
+    "elo": 1902.0,
+    "quality": 0.856,
+    "form": -0.1223,
+    "attack": 0.6734,
+    "defense": 0.6453,
+    "confederation": "CONMEBOL"
+  },
+  "CAN": {
+    "elo": 1760.9,
+    "quality": 0.484,
+    "form": -0.01,
+    "attack": 0.6599,
+    "defense": 0.5881,
+    "confederation": "CONCACAF"
+  },
+  "CIV": {
+    "elo": 1712.2,
+    "quality": 0.572,
+    "form": 0.1112,
+    "attack": 0.6217,
+    "defense": 0.6336,
+    "confederation": "CAF"
+  },
+  "COD": {
+    "elo": 1666.5,
+    "quality": 0.456,
+    "form": 0.137,
+    "attack": 0.6731,
+    "defense": 0.5601,
+    "confederation": "CAF"
+  },
+  "COL": {
+    "elo": 1860.6,
+    "quality": 0.588,
+    "form": 0.0547,
+    "attack": 0.7456,
+    "defense": 0.5326,
+    "confederation": "CONMEBOL"
+  },
+  "CPV": {
+    "elo": 1609.9,
+    "quality": 0.268,
+    "form": 0.0608,
+    "attack": 0.597,
+    "defense": 0.502,
+    "confederation": "CAF"
+  },
+  "CRO": {
+    "elo": 1840.5,
+    "quality": 0.632,
+    "form": 0.0385,
+    "attack": 0.702,
+    "defense": 0.6515,
+    "confederation": "UEFA"
+  },
+  "CUR": {
+    "elo": 1541.8,
+    "quality": 0.064,
+    "form": 0.108,
+    "attack": 0.5344,
+    "defense": 0.5556,
+    "confederation": "CONCACAF"
+  },
+  "CZE": {
+    "elo": 1675.6,
+    "quality": 0.5,
+    "form": -0.1268,
+    "attack": 0.7149,
+    "defense": 0.5746,
+    "confederation": "UEFA"
+  },
+  "ECU": {
+    "elo": 1829.6,
+    "quality": 0.488,
+    "form": 0.1139,
+    "attack": 0.5366,
+    "defense": 0.6982,
+    "confederation": "CONMEBOL"
+  },
+  "EGY": {
+    "elo": 1727.0,
+    "quality": 0.224,
+    "form": 0.0735,
+    "attack": 0.5697,
+    "defense": 0.5111,
+    "confederation": "CAF"
+  },
+  "ENG": {
+    "elo": 1887.1,
+    "quality": 0.836,
+    "form": 0.0788,
+    "attack": 0.8172,
+    "defense": 0.6081,
+    "confederation": "UEFA"
+  },
+  "ESP": {
+    "elo": 2004.5,
+    "quality": 0.852,
+    "form": -0.0017,
+    "attack": 0.7419,
+    "defense": 0.6566,
+    "confederation": "UEFA"
+  },
+  "FRA": {
+    "elo": 1952.1,
+    "quality": 0.864,
+    "form": 0.0317,
+    "attack": 0.6596,
+    "defense": 0.6778,
+    "confederation": "UEFA"
+  },
+  "GER": {
+    "elo": 1850.8,
+    "quality": 0.784,
+    "form": 0.1124,
+    "attack": 0.6476,
+    "defense": 0.7508,
+    "confederation": "UEFA"
+  },
+  "GHA": {
+    "elo": 1592.6,
+    "quality": 0.496,
+    "form": 0.0779,
+    "attack": 0.6419,
+    "defense": 0.5849,
+    "confederation": "CAF"
+  },
+  "HAI": {
+    "elo": 1649.5,
+    "quality": 0.172,
+    "form": 0.124,
+    "attack": 0.5394,
+    "defense": 0.5414,
+    "confederation": "CONCACAF"
+  },
+  "IRN": {
+    "elo": 1810.5,
+    "quality": 0.24,
+    "form": -0.058,
+    "attack": 0.6162,
+    "defense": 0.5354,
+    "confederation": "AFC"
+  },
+  "IRQ": {
+    "elo": 1695.3,
+    "quality": 0.064,
+    "form": 0.0445,
+    "attack": 0.595,
+    "defense": 0.4812,
+    "confederation": "AFC"
+  },
+  "JOR": {
+    "elo": 1691.0,
+    "quality": 0.212,
+    "form": 0.153,
+    "attack": 0.532,
+    "defense": 0.4478,
+    "confederation": "AFC"
+  },
+  "JPN": {
+    "elo": 1841.3,
+    "quality": 0.572,
+    "form": 0.0882,
+    "attack": 0.7006,
+    "defense": 0.6198,
+    "confederation": "AFC"
+  },
+  "KOR": {
+    "elo": 1784.3,
+    "quality": 0.48,
+    "form": -0.0434,
+    "attack": 0.7045,
+    "defense": 0.5619,
+    "confederation": "AFC"
+  },
+  "KSA": {
+    "elo": 1646.8,
+    "quality": 0.336,
+    "form": -0.0188,
+    "attack": 0.5677,
+    "defense": 0.6303,
+    "confederation": "AFC"
+  },
+  "MAR": {
+    "elo": 1831.9,
+    "quality": 0.636,
+    "form": 0.0854,
+    "attack": 0.7182,
+    "defense": 0.6121,
+    "confederation": "CAF"
+  },
+  "MEX": {
+    "elo": 1838.8,
+    "quality": 0.528,
+    "form": 0.0025,
+    "attack": 0.7556,
+    "defense": 0.5141,
+    "confederation": "CONCACAF"
+  },
+  "NED": {
+    "elo": 1864.0,
+    "quality": 0.788,
+    "form": 0.0159,
+    "attack": 0.6722,
+    "defense": 0.7686,
+    "confederation": "UEFA"
+  },
+  "NOR": {
+    "elo": 1749.6,
+    "quality": 0.584,
+    "form": 0.113,
+    "attack": 0.699,
+    "defense": 0.599,
+    "confederation": "UEFA"
+  },
+  "NZL": {
+    "elo": 1678.5,
+    "quality": 0.244,
+    "form": -0.1362,
+    "attack": 0.5747,
+    "defense": 0.6081,
+    "confederation": "OFC"
+  },
+  "PAN": {
+    "elo": 1759.6,
+    "quality": 0.156,
+    "form": 0.0131,
+    "attack": 0.5544,
+    "defense": 0.5443,
+    "confederation": "CONCACAF"
+  },
+  "PAR": {
+    "elo": 1750.6,
+    "quality": 0.424,
+    "form": 0.1036,
+    "attack": 0.6694,
+    "defense": 0.5712,
+    "confederation": "CONMEBOL"
+  },
+  "POR": {
+    "elo": 1894.3,
+    "quality": 0.812,
+    "form": -0.0641,
+    "attack": 0.7374,
+    "defense": 0.6828,
+    "confederation": "UEFA"
+  },
+  "QAT": {
+    "elo": 1595.9,
+    "quality": 0.288,
+    "form": -0.1883,
+    "attack": 0.6323,
+    "defense": 0.5424,
+    "confederation": "AFC"
+  },
+  "RSA": {
+    "elo": 1614.8,
+    "quality": 0.128,
+    "form": -0.035,
+    "attack": 0.5657,
+    "defense": 0.5124,
+    "confederation": "CAF"
+  },
+  "SCO": {
+    "elo": 1701.3,
+    "quality": 0.528,
+    "form": 0.0558,
+    "attack": 0.663,
+    "defense": 0.7043,
+    "confederation": "UEFA"
+  },
+  "SEN": {
+    "elo": 1815.3,
+    "quality": 0.588,
+    "form": 0.1101,
+    "attack": 0.7082,
+    "defense": 0.5724,
+    "confederation": "CAF"
+  },
+  "SUI": {
+    "elo": 1787.7,
+    "quality": 0.66,
+    "form": 0.0761,
+    "attack": 0.6591,
+    "defense": 0.7336,
+    "confederation": "UEFA"
+  },
+  "SWE": {
+    "elo": 1681.5,
+    "quality": 0.612,
+    "form": -0.1563,
+    "attack": 0.6639,
+    "defense": 0.5996,
+    "confederation": "UEFA"
+  },
+  "TUN": {
+    "elo": 1683.6,
+    "quality": 0.316,
+    "form": 0.0112,
+    "attack": 0.6235,
+    "defense": 0.5308,
+    "confederation": "CAF"
+  },
+  "TUR": {
+    "elo": 1781.5,
+    "quality": 0.612,
+    "form": 0.1608,
+    "attack": 0.7396,
+    "defense": 0.6319,
+    "confederation": "UEFA"
+  },
+  "URU": {
+    "elo": 1831.2,
+    "quality": 0.648,
+    "form": -0.0014,
+    "attack": 0.7,
+    "defense": 0.7323,
+    "confederation": "CONMEBOL"
+  },
+  "USA": {
+    "elo": 1734.8,
+    "quality": 0.56,
+    "form": 0.0409,
+    "attack": 0.6171,
+    "defense": 0.6804,
+    "confederation": "CONCACAF"
+  },
+  "UZB": {
+    "elo": 1740.2,
+    "quality": 0.176,
+    "form": 0.0257,
+    "attack": 0.5515,
+    "defense": 0.5354,
+    "confederation": "AFC"
+  }
+}
