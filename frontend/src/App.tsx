@@ -30,6 +30,7 @@ function AppInner() {
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
   const precomputedLoaded = useRef(false);
+  const rawSimData = useRef<SimulationResponse | null>(null);
 
   // Profile from localStorage
   const { profile, update: updateProfile } = useProfile();
@@ -63,13 +64,23 @@ function AppInner() {
     if (precomputedLoaded.current) return;
     precomputedLoaded.current = true;
     loadPrecomputedSimulation()
-      .then((data) => applySimulation(data, profile))
+      .then((data) => {
+        rawSimData.current = data;
+        applySimulation(data, profile);
+      })
       .catch(() => { /* pre-computed not available, user can simulate manually */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-apply personal scoring to simulation when profile changes
+  useEffect(() => {
+    if (simulated && rawSimData.current && profile) {
+      applySimulation(rawSimData.current, profile);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
   function applySimulation(data: SimulationResponse, prof: Profile) {
-    // Apply personal scoring to simulation matches
     const dw = matchData?.default_weights ?? {};
     const scored = applyPersonalScoring(
       { matches: data.matches, weights: data.weights, default_weights: dw, has_learned: false },
@@ -128,6 +139,7 @@ function AppInner() {
     try {
       dispatch({ type: 'SET_SIMULATING' });
       const data = await simulate(profile, loadLearnedWeights(), undefined, state.simEngine);
+      rawSimData.current = data;
       applySimulation(data, profile);
       dispatch({ type: 'SET_TAB', tab: 'bracket' });
       toast(`Simulacion completa (semilla ${data.seed})`);
