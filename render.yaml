@@ -6,4 +6,4 @@ services:
     branch: main
     envVars:
       - key: CORS_ORIGINS
-        value: https://rodrigopazos.github.io,http://localhost:5173
+        value: https://rpazos98.github.io,http://localhost:5173
