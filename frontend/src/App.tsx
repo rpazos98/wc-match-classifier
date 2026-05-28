@@ -16,7 +16,8 @@ import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
 import { simulate, loadPrecomputedSimulation } from './api/matches';
 import { loadLearnedWeights } from './api/storage';
-import type { SimulationResponse } from './types';
+import { applyPersonalScoring } from './scoring/personal';
+import type { SimulationResponse, Profile } from './types';
 
 function AppInner() {
   const state = useAppState();
@@ -62,12 +63,19 @@ function AppInner() {
     if (precomputedLoaded.current) return;
     precomputedLoaded.current = true;
     loadPrecomputedSimulation()
-      .then((data) => applySimulation(data))
+      .then((data) => applySimulation(data, profile))
       .catch(() => { /* pre-computed not available, user can simulate manually */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applySimulation(data: SimulationResponse) {
+  function applySimulation(data: SimulationResponse, prof: Profile) {
+    // Apply personal scoring to simulation matches
+    const dw = matchData?.default_weights ?? {};
+    const scored = applyPersonalScoring(
+      { matches: data.matches, weights: data.weights, default_weights: dw, has_learned: false },
+      prof,
+    );
+
     const allBracketMatches = data.bracket_rounds.flatMap((r) => r.matches);
     const finalMatch = allBracketMatches.find((m) => m.match_num === 104);
     const thirdMatch = allBracketMatches.find((m) => m.match_num === 103);
@@ -84,7 +92,7 @@ function AppInner() {
         third_place: thirdMatch?.winner ?? null,
       },
       seed: data.seed,
-      matches: data.matches,
+      matches: scored.matches,
       weights: data.weights,
     });
   }
@@ -120,7 +128,7 @@ function AppInner() {
     try {
       dispatch({ type: 'SET_SIMULATING' });
       const data = await simulate(profile, loadLearnedWeights(), undefined, state.simEngine);
-      applySimulation(data);
+      applySimulation(data, profile);
       dispatch({ type: 'SET_TAB', tab: 'bracket' });
       toast(`Simulacion completa (semilla ${data.seed})`);
     } catch (err) {
