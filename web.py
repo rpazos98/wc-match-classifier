@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="WC 2026", lifespan=lifespan)
 
 # CORS — allow GitHub Pages and local dev
-`_CORS_ORIGINS = os.environ.get(
+_CORS_ORIGINS = os.environ.get(
     "CORS_ORIGINS",
     "http://localhost:5173,https://rpazos98.github.io",
 ).split(",")
