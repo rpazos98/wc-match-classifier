@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: wc-match-classifier
+    runtime: docker
+    plan: free
+    branch: main
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://rodrigopazos.github.io,http://localhost:5173

@@ -29,8 +29,10 @@ ENV/
 # Distribution
 *.whl
 
-# Data files (not tracked)
-data/
+# Data files — large build-only CSVs excluded, runtime data tracked
+data/player_profiles.csv
+data/player_national_performances.csv
+data/user_state.json
 
 # Jupyter
 .ipynb_checkpoints/

@@ -1,0 +1,13 @@
+.venv/
+.git/
+frontend/node_modules/
+data/player_profiles.csv
+data/player_national_performances.csv
+data/user_state.json
+__pycache__/
+*.pyc
+.env
+.env.*
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
