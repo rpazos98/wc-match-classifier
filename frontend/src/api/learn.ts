@@ -1,4 +1,4 @@
-import { get, post } from "./client";
+import { get } from "./client";
 import type {
   LearnMatchesResponse,
   FitRatingsResponse,
@@ -14,6 +14,7 @@ import {
   saveFitMeta,
   resetLearnState,
 } from "./storage";
+import { fitFromRatings } from "../scoring/learning";
 
 export interface LearnMatchesParams {
   n?: number;
@@ -31,14 +32,13 @@ export function getLearnMatches(params?: LearnMatchesParams): Promise<LearnMatch
   });
 }
 
-export async function fitRatings(newRatings: RatedMatch[]): Promise<FitRatingsResponse> {
+export function fitRatings(newRatings: RatedMatch[]): FitRatingsResponse {
   // Accumulate with existing examples from localStorage
   const existing = loadRatedExamples();
   const allExamples = [...existing, ...newRatings];
 
-  const result = await post<FitRatingsResponse>("/api/learn/fit-ratings", {
-    ratings: allExamples,
-  });
+  // Run Ridge/Pearson regression client-side
+  const result = fitFromRatings(allExamples);
 
   // Persist results to localStorage
   saveRatedExamples(allExamples);
@@ -51,7 +51,11 @@ export async function fitRatings(newRatings: RatedMatch[]): Promise<FitRatingsRe
     last_fit: new Date().toISOString(),
   });
 
-  return result;
+  return {
+    ...result,
+    scorer_labels: {},
+    total_examples: allExamples.length,
+  };
 }
 
 export function resetRatings(): void {
@@ -66,7 +70,7 @@ export function getLearnState(): LearnStateResponse {
     n_examples: examples.length,
     has_learned: weights !== null,
     learned_weights: weights,
-    default_weights: {},  // not needed for UI check
+    default_weights: {},
     fit_meta: meta,
     weight_delta: {},
   };
