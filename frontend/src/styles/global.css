@@ -217,15 +217,23 @@ body {
 }
 .btn-icon { padding: 6px 10px; }
 
-/* ── Layout ── */
+/* ── Layout (mobile-first: column, wide: row) ── */
 #layout {
   display: flex;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
+  flex-direction: column;
+  flex: none;
+  overflow: visible;
+}
+@media (min-width: 769px) {
+  #layout {
+    flex-direction: row;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
 }
 
-/* ── Sidebar ── */
+/* ── Sidebar (hidden by default, shown on wide screens) ── */
 #sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
@@ -233,6 +241,10 @@ body {
   border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: 14px 12px;
+  display: none;
+}
+@media (min-width: 1281px) {
+  #sidebar { display: block; }
 }
 .profile-name {
   font-family: var(--font-display);
@@ -1926,3 +1938,101 @@ input[type="checkbox"] { accent-color: var(--green); cursor: pointer; width: 16p
 }
 .player-item { font-size: 13px; font-weight: 600; }
 .avail-item  { font-size: 12px; font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Responsive — mobile first breakpoints
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet: narrower detail ── */
+@media (max-width: 1024px) {
+  :root { --detail-w: 280px; }
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  body { overflow: auto; height: auto; min-height: 100vh; }
+
+  /* Header compact */
+  #header h1 { font-size: 16px; letter-spacing: 1px; }
+  .header-subtitle { display: none; }
+  .header-top { padding: 6px 10px 0; flex-wrap: wrap; gap: 4px; }
+  .header-meta { gap: 4px; }
+  #seed-badge { font-size: 9px; padding: 2px 6px; }
+
+  /* Pipeline compact */
+  .header-pipeline { padding: 4px 10px 6px; gap: 1px; }
+  .pipe-step { padding: 4px 8px; font-size: 11px; gap: 4px; }
+  .pipe-num { width: 16px; height: 16px; font-size: 9px; }
+  .pipe-arrow { font-size: 14px; padding: 0 2px; }
+
+  /* Layout: single column stack */
+  #layout {
+    flex-direction: column;
+    overflow: visible;
+    flex: none;
+  }
+
+  /* Main takes full width, no fixed height */
+  #main { flex: none; overflow: visible; }
+
+  /* Detail panel: full-width below match list */
+  #detail {
+    width: 100% !important;
+    border-left: none;
+    border-top: 2px solid var(--border2);
+    overflow: visible;
+  }
+
+  /* Tabs */
+  #tabs { padding: 0 4px; }
+  .tab-btn { padding: 0 12px; font-size: 12px; }
+
+  /* Filter bar */
+  .match-filter-bar { padding: 4px 10px; flex-wrap: wrap; }
+  .filter-btn { padding: 3px 10px; font-size: 10px; }
+
+  /* Match list: no internal scroll, page scrolls */
+  .match-list-container { flex: none; overflow: visible; }
+
+  /* Match rows: compact */
+  .match-row { padding: 8px 10px; gap: 6px; }
+  .mr-score { width: 36px; font-size: 16px; }
+  .mr-teams { font-size: 12px; }
+  .mr-winner { width: 50px; font-size: 11px; }
+  .mr-stage { display: none; }
+  .mr-date { width: auto; font-size: 10px; }
+
+  /* Match cards */
+  .match-card { margin: 6px 8px; padding: 10px; }
+
+  /* Section headers */
+  .section-hdr { padding: 6px 10px; font-size: 12px; }
+
+  /* Status bar */
+  .status-bar { padding: 4px 10px; font-size: 10px; flex-wrap: wrap; }
+
+  /* Detail header */
+  .det-header { padding: 12px 12px 10px; }
+  .det-teams { font-size: 16px; }
+  .det-section { padding: 10px 12px; }
+
+  /* Bracket: horizontal scroll */
+  .ko-bracket { padding: 8px; }
+  .ko-round { min-width: 130px; }
+  .ko-match { padding: 6px 8px; font-size: 11px; }
+
+  /* Group standings: full width cards */
+  .group-grid { gap: 8px; }
+  .group-card { min-width: 100%; }
+
+  /* Champion card */
+  .champ-card { padding: 12px; }
+
+  /* Modals */
+  #modal-box { width: 96vw; max-height: 90vh; }
+  #learn-box { width: 96vw; }
+
+  /* Buttons */
+  .btn { padding: 6px 10px; font-size: 12px; }
+  .btn-icon { padding: 5px 8px; }
+}
