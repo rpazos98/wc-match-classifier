@@ -38,6 +38,8 @@ export interface SerializedMonteCarloResult {
     matchWinners: Record<number, string>;
     matchLosers: Record<number, string>;
     matchScores: Record<number, [number, number]>;
+    matchHome: Record<number, string>;
+    matchAway: Record<number, string>;
     standings: Record<string, Array<{ team: string; pts: number; gd: number; gf: number }>>;
   };
 }
@@ -83,6 +85,8 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       matchWinners: mapToObj(rep.matchWinners),
       matchLosers: mapToObj(rep.matchLosers),
       matchScores: mapToObj(rep.matchScores) as Record<number, [number, number]>,
+      matchHome: mapToObj(rep.matchHome),
+      matchAway: mapToObj(rep.matchAway),
       standings: (() => {
         const s: Record<string, Array<{ team: string; pts: number; gd: number; gf: number }>> = {};
         for (const [grp, rows] of rep.standings) s[grp] = rows;

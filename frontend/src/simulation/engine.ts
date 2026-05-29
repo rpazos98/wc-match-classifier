@@ -31,6 +31,8 @@ export interface SimulationResult {
   matchWinners: Map<number, string>;
   matchLosers: Map<number, string>;
   matchScores: Map<number, [number, number]>;
+  matchHome: Map<number, string>;   // original home team per KO match
+  matchAway: Map<number, string>;   // original away team per KO match
   standings: Map<string, StandingRow[]>;
 }
 
@@ -496,6 +498,8 @@ export function simulateBracket(
   const matchWinners = new Map(groupWinners);
   const matchLosers = new Map<number, string>();
   const matchScores = new Map(groupScores);
+  const matchHome = new Map<number, string>();
+  const matchAway = new Map<number, string>();
 
   function teamForSlot(slot: Slot): string {
     const [kind, val] = slot;
@@ -505,6 +509,8 @@ export function simulateBracket(
   }
 
   function resolve(mn: number, home: string, away: string): void {
+    matchHome.set(mn, home);
+    matchAway.set(mn, away);
     const [w, l, hg, ag] = simKO(home, away, profiles, rng, engine);
     matchWinners.set(mn, w);
     matchLosers.set(mn, l);
@@ -543,7 +549,7 @@ export function simulateBracket(
   // Final
   resolve(104, matchWinners.get(101)!, matchWinners.get(102)!);
 
-  return { matchWinners, matchLosers, matchScores, standings };
+  return { matchWinners, matchLosers, matchScores, matchHome, matchAway, standings };
 }
 
 // ── Monte Carlo aggregation ──────────────────────────────────────────────────

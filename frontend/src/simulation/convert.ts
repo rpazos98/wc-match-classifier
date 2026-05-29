@@ -14,6 +14,7 @@ import type {
   Match,
   ScorerWeight,
 } from '../types';
+import { scoreKOMatch, type ScoringData } from '../scoring/classify';
 
 // ── Stage metadata ───────────────────────────────────────────────────────────
 
@@ -62,16 +63,6 @@ const KO_VENUES: Record<number, { venue: string; kickoff_utc: string; kickoff_lo
   104: { venue: 'MetLife Stadium, New York/New Jersey',  kickoff_utc: '2026-07-19T19:00:00+00:00', kickoff_local: '19/07 19:00' },
 };
 
-// Match Stage raw scores for scoring
-const STAGE_RAW: Record<string, number> = {
-  r32: 0.50,
-  r16: 0.65,
-  qf: 0.80,
-  sf: 0.90,
-  third_place: 0.45,
-  final: 1.00,
-};
-
 const ROUND_LABELS: Array<{ label: string; range: [number, number] }> = [
   { label: '16VOS', range: [73, 88] },
   { label: 'OCTAVOS', range: [89, 96] },
@@ -89,7 +80,8 @@ export function convertToSimulationResponse(
   existingGroupMatches: Match[],
   seed: number,
   weights: Record<string, ScorerWeight>,
-  defaultWeights: Record<string, number>,
+  _defaultWeights: Record<string, number>,
+  scoringData: ScoringData | null = null,
 ): SimulationResponse {
   const rep = mc.representative;
 
@@ -175,8 +167,8 @@ export function convertToSimulationResponse(
   const bracketRounds: BracketRound[] = ROUND_LABELS.map(({ label, range }) => {
     const matches: BracketMatch[] = [];
     for (let mn = range[0]; mn <= range[1]; mn++) {
-      const home = rep.matchWinners[mn] ?? 'TBD';
-      const away = rep.matchLosers[mn] ?? 'TBD';
+      const home = rep.matchHome?.[mn] ?? rep.matchWinners[mn] ?? 'TBD';
+      const away = rep.matchAway?.[mn] ?? rep.matchLosers[mn] ?? 'TBD';
       const winner = rep.matchWinners[mn] ?? '';
       const loser = rep.matchLosers[mn] ?? '';
       const score = rep.matchScores[mn];
@@ -223,22 +215,26 @@ export function convertToSimulationResponse(
     };
   });
 
-  // KO matches: build stub Match objects
+  // KO matches: build scored Match objects
   const koMatches: Match[] = [];
   for (let mn = 73; mn <= 104; mn++) {
     const mid = `M${String(mn).padStart(3, '0')}`;
     const stageInfo = STAGE_MAP[mn];
     const venueInfo = KO_VENUES[mn] ?? { venue: '', kickoff_utc: '', kickoff_local: '' };
-    const home = rep.matchWinners[mn] ?? 'TBD';
-    const away = rep.matchLosers[mn] ?? 'TBD';
+    const home = rep.matchHome?.[mn] ?? rep.matchWinners[mn] ?? 'TBD';
+    const away = rep.matchAway?.[mn] ?? rep.matchLosers[mn] ?? 'TBD';
     const score = rep.matchScores[mn];
     const winner = rep.matchWinners[mn] ?? null;
     const avg = mc.matchAvgGoals[mn];
 
-    // Minimal scoring for KO matches
-    const stageRaw = STAGE_RAW[stageInfo.stage] ?? 0.5;
-    const stageWeight = defaultWeights['Match Stage'] ?? 0.17;
-    const stageContrib = stageRaw * stageWeight * 100;
+    // Full intrinsic scoring when data available
+    const scores = scoringData
+      ? scoreKOMatch(home, away, stageInfo.stage, avg, scoringData)
+      : null;
+
+    const totalScore = scores?.total ?? 0;
+    const label = totalScore >= 60 ? 'Imperdible' : totalScore >= 30 ? 'Vale la pena' : 'Para ver el resumen';
+    const emoji = totalScore >= 60 ? '\u{1F525}' : totalScore >= 30 ? '\u{1F440}' : '\u{1F4CB}';
 
     koMatches.push({
       match_id: mid,
@@ -249,24 +245,25 @@ export function convertToSimulationResponse(
       kickoff_utc: venueInfo.kickoff_utc,
       kickoff_local: venueInfo.kickoff_local,
       venue: venueInfo.venue,
-      score: Math.round(stageContrib * 10) / 10,
-      label: stageContrib >= 60 ? 'Imperdible' : stageContrib >= 30 ? 'Vale la pena' : 'Para ver el resumen',
-      emoji: stageContrib >= 60 ? '\u{1F525}' : stageContrib >= 30 ? '\u{1F440}' : '\u{1F4CB}',
+      score: totalScore,
+      label,
+      emoji,
       archetype: null,
       narrative: null,
-      breakdown: { 'Match Stage': Math.round(stageContrib * 10) / 10 },
-      raw_by_scorer: { 'Match Stage': stageRaw },
-      weight_by_scorer: { 'Match Stage': stageWeight },
-      reason_by_scorer: {},
+      breakdown: scores?.breakdown ?? {},
+      raw_by_scorer: scores?.raw_by_scorer ?? {},
+      weight_by_scorer: scores?.weight_by_scorer ?? {},
+      reason_by_scorer: scores?.reason_by_scorer ?? {},
+      detail_by_scorer: scores?.detail_by_scorer ?? {},
       reasons: {},
-      prediction: null,
-      intrinsic_score: Math.round(stageContrib * 10) / 10,
+      prediction: scores?.prediction ?? null,
+      intrinsic_score: totalScore,
       personal_score: 0,
       h2h: null,
       h2h_all: null,
       h2h_recent: null,
-      stars: null,
-      base_score: Math.round(stageContrib * 10) / 10,
+      stars: scores?.stars ?? null,
+      base_score: totalScore,
       home_goals: score ? score[0] : null,
       away_goals: score ? score[1] : null,
       predicted_winner: winner,
