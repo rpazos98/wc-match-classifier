@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Team, Match } from '../../types';
 import { getTeams } from '../../api/profile';
-import { previewMatch } from '../../api/matches';
-import { loadProfile, loadLearnedWeights } from '../../api/storage';
+import { loadProfile } from '../../api/storage';
+import { scoreKOMatch, loadScoringData, type ScoringData } from '../../scoring/classify';
+import type { TeamProfile } from '../../simulation/engine';
 import { fl } from '../../utils/flags';
 import { scoreColor } from '../../utils/labels';
 import ScoreRing from '../detail/ScoreRing';
 import ContributionList from '../detail/ContributionList';
 import ProbabilityBar from '../detail/ProbabilityBar';
+
+const BASE = import.meta.env.BASE_URL ?? '/';
 
 const STAGES = [
   { value: 'group', label: 'Fase de Grupos' },
@@ -19,6 +22,18 @@ const STAGES = [
   { value: 'final', label: 'Final' },
 ];
 
+const STAGE_LABELS: Record<string, string> = {
+  group: 'Fase de Grupos',
+  r32: '16vos de Final',
+  r16: 'Octavos de Final',
+  qf: 'Cuartos de Final',
+  sf: 'Semifinal',
+  third_place: 'Tercer Lugar',
+  final: '¡Gran Final!',
+};
+
+const PERSONAL_WEIGHT_FAV = 0.19;
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -29,13 +44,22 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
   const [home, setHome] = useState('');
   const [away, setAway] = useState('');
   const [stage, setStage] = useState('group');
-  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Match | null>(null);
   const [error, setError] = useState('');
+  const scoringDataRef = useRef<ScoringData | null>(null);
 
+  // Load teams + scoring data once
   useEffect(() => {
     if (isOpen && teams.length === 0) {
       getTeams().then(setTeams).catch(() => {});
+    }
+    if (isOpen && !scoringDataRef.current) {
+      fetch(`${BASE}data/team_profiles.json`)
+        .then(r => r.json())
+        .then((profiles: Record<string, TeamProfile>) =>
+          loadScoringData(profiles).then(sd => { scoringDataRef.current = sd; }),
+        )
+        .catch(() => {});
     }
   }, [isOpen, teams.length]);
 
@@ -43,27 +67,95 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
     return [...teams].filter((t) => !t.is_placeholder).sort((a, b) => a.fifa_code.localeCompare(b.fifa_code));
   }, [teams]);
 
-  const handleClassify = useCallback(async () => {
+  const handleClassify = useCallback(() => {
     if (!home || !away) return;
     if (home === away) {
       setError('Selecciona dos equipos diferentes');
       return;
     }
-    setError('');
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await previewMatch(home, away, stage, loadProfile(), loadLearnedWeights());
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setResult(data.match);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al clasificar');
-    } finally {
-      setLoading(false);
+    if (!scoringDataRef.current) {
+      setError('Datos de scoring no cargados aún');
+      return;
     }
+    setError('');
+
+    const data = scoringDataRef.current;
+    const intrinsic = scoreKOMatch(home, away, stage, undefined, data);
+
+    // Personal scoring
+    const profile = loadProfile();
+    const affinities: Record<string, number> = {};
+    for (const [k, v] of Object.entries(profile.team_affinities)) {
+      affinities[k.toUpperCase()] = v;
+    }
+
+    let personalTotal = 0;
+    const breakdown = { ...intrinsic.breakdown };
+    const rawByScorer = { ...intrinsic.raw_by_scorer };
+    const weightByScorer = { ...intrinsic.weight_by_scorer };
+    const reasonByScorer = { ...intrinsic.reason_by_scorer };
+
+    if (Object.keys(affinities).length > 0) {
+      // Favorite Team
+      const aH = affinities[home] ?? 0;
+      const aA = affinities[away] ?? 0;
+      if (aH > 0 || aA > 0) {
+        const hi = Math.max(aH, aA);
+        const lo = Math.min(aH, aA);
+        const favRaw = Math.min(1.0, hi + 0.3 * lo);
+        const favContrib = favRaw * PERSONAL_WEIGHT_FAV * 100;
+        breakdown['Favorite Team'] = Math.round(favContrib * 10) / 10;
+        rawByScorer['Favorite Team'] = favRaw;
+        weightByScorer['Favorite Team'] = PERSONAL_WEIGHT_FAV;
+        personalTotal += favContrib;
+
+        // Momento synergy
+        const stageRaw = rawByScorer['Match Stage'] ?? 0;
+        if (favRaw > 0.3 && stageRaw > 0.35) {
+          const synergy = favRaw * stageRaw * 8.0;
+          breakdown['Momento'] = Math.round(synergy * 10) / 10;
+          rawByScorer['Momento'] = Math.round(favRaw * stageRaw * 10000) / 10000;
+          weightByScorer['Momento'] = 0.08;
+          personalTotal += synergy;
+        }
+      }
+    }
+
+    const totalScore = Math.round(Math.min(intrinsic.total + personalTotal, 100) * 10) / 10;
+    const label = totalScore >= 60 ? 'Imperdible' : totalScore >= 30 ? 'Vale la pena' : 'Para ver el resumen';
+    const emoji = totalScore >= 60 ? '\u{1F525}' : totalScore >= 30 ? '\u{1F440}' : '\u{1F4CB}';
+
+    const match: Match = {
+      match_id: `PREVIEW_${home}_${away}`,
+      home,
+      away,
+      stage,
+      stage_label: STAGE_LABELS[stage] ?? stage,
+      kickoff_utc: new Date().toISOString(),
+      kickoff_local: '',
+      venue: 'Hipotético',
+      score: totalScore,
+      label,
+      emoji,
+      archetype: intrinsic.archetype,
+      narrative: intrinsic.narrative,
+      breakdown,
+      raw_by_scorer: rawByScorer,
+      weight_by_scorer: weightByScorer,
+      reason_by_scorer: reasonByScorer,
+      detail_by_scorer: intrinsic.detail_by_scorer,
+      reasons: reasonByScorer,
+      prediction: intrinsic.prediction as Match['prediction'],
+      intrinsic_score: intrinsic.total,
+      personal_score: Math.round(personalTotal),
+      base_score: intrinsic.total,
+      h2h: intrinsic.h2h,
+      h2h_all: intrinsic.h2hAll,
+      h2h_recent: intrinsic.h2hRecent,
+      stars: intrinsic.stars,
+    };
+
+    setResult(match);
   }, [home, away, stage]);
 
   const handleSwap = useCallback(() => {
@@ -163,10 +255,10 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
             <button
               className="btn btn-primary"
               onClick={handleClassify}
-              disabled={!home || !away || home === away || loading}
+              disabled={!home || !away || home === away}
               style={{ minWidth: 200, fontSize: 14 }}
             >
-              {loading ? 'Clasificando...' : 'Clasificar Partido'}
+              Clasificar Partido
             </button>
           </div>
 
