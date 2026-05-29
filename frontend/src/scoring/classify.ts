@@ -25,10 +25,17 @@ export interface H2HEntry {
   meetings: number;
 }
 
+export interface H2HRecordData {
+  wc: { matches: number; a_wins: number; draws: number; b_wins: number } | null;
+  all: { matches: number; a_wins: number; draws: number; b_wins: number } | null;
+  recent: Array<{ date: string; tournament: string; a_goals: number; b_goals: number }> | null;
+}
+
 export interface ScoringData {
   profiles: Record<string, TeamProfile>;
   teamStars: Record<string, StarEntry[]>;
   h2h: Record<string, H2HEntry>;
+  h2hRecords: Record<string, H2HRecordData>;
 }
 
 export interface IntrinsicScores {
@@ -41,6 +48,9 @@ export interface IntrinsicScores {
   stars: Array<{ name: string; team: string; overall: number }> | null;
   archetype: { key: string; icon: string; label: string } | null;
   narrative: string | null;
+  h2h: { matches: number; a_wins: number; draws: number; b_wins: number } | null;
+  h2hAll: { matches: number; a_wins: number; draws: number; b_wins: number } | null;
+  h2hRecent: Array<{ date: string; tournament: string; a_goals: number; b_goals: number }> | null;
   total: number;
 }
 
@@ -84,12 +94,13 @@ const DEPTH_WEIGHTS = [0.50, 0.30, 0.20];
 export async function loadScoringData(
   profiles: Record<string, TeamProfile>,
 ): Promise<ScoringData> {
-  const [teamStars, h2h] = await Promise.all([
+  const [teamStars, h2h, h2hRecords] = await Promise.all([
     fetch(`${BASE}data/team_stars.json`).then(r => r.json()),
     fetch(`${BASE}data/h2h.json`).then(r => r.json()),
+    fetch(`${BASE}data/h2h_records.json`).then(r => r.json()),
   ]);
 
-  return { profiles, teamStars, h2h };
+  return { profiles, teamStars, h2h, h2hRecords };
 }
 
 // ── ELO prediction (base ELO, neutral venue) ────────────────────────────────
@@ -429,6 +440,14 @@ export function scoreKOMatch(
   const archetype = matchArchetype(raw_by_scorer, pred.entropy);
   const narrative = matchNarrative(homeCode, awayCode, stage, raw_by_scorer, pred.entropy);
 
+  // H2H records lookup — key is sorted pair, but records are stored home=first alphabetically
+  const h2hKey = [homeCode, awayCode].sort().join('-');
+  const h2hRec = data.h2hRecords[h2hKey];
+  // If home team is NOT the first alphabetically, swap a_wins/b_wins
+  const isSwapped = homeCode > awayCode;
+  const swapRecord = (r: { matches: number; a_wins: number; draws: number; b_wins: number } | null) =>
+    r && isSwapped ? { ...r, a_wins: r.b_wins, b_wins: r.a_wins } : r;
+
   return {
     breakdown,
     raw_by_scorer,
@@ -439,6 +458,11 @@ export function scoreKOMatch(
     stars: starsArr,
     archetype,
     narrative,
+    h2h: swapRecord(h2hRec?.wc ?? null),
+    h2hAll: swapRecord(h2hRec?.all ?? null),
+    h2hRecent: h2hRec?.recent
+      ? h2hRec.recent.map(r => isSwapped ? { ...r, a_goals: r.b_goals, b_goals: r.a_goals } : r)
+      : null,
     total: Math.round(Math.min(total, 100) * 10) / 10,
   };
 }
