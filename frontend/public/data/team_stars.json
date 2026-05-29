@@ -1,0 +1,348 @@
+{
+  "ARG": [
+    {
+      "name": "L. Martínez",
+      "overall": 88
+    },
+    {
+      "name": "A. Mac Allister",
+      "overall": 87
+    },
+    {
+      "name": "J. Alvarez",
+      "overall": 87
+    },
+    {
+      "name": "L. Messi",
+      "overall": 86
+    },
+    {
+      "name": "P. Dybala",
+      "overall": 86
+    },
+    {
+      "name": "E. Martínez",
+      "overall": 85
+    }
+  ],
+  "BEL": [
+    {
+      "name": "T. Courtois",
+      "overall": 89
+    },
+    {
+      "name": "K. De Bruyne",
+      "overall": 87
+    },
+    {
+      "name": "Y. Tielemans",
+      "overall": 85
+    }
+  ],
+  "BRA": [
+    {
+      "name": "Alisson",
+      "overall": 89
+    },
+    {
+      "name": "Raphinha",
+      "overall": 89
+    },
+    {
+      "name": "Vini Jr.",
+      "overall": 89
+    },
+    {
+      "name": "Gabriel",
+      "overall": 88
+    },
+    {
+      "name": "Marquinhos",
+      "overall": 87
+    },
+    {
+      "name": "Bruno Guimarães",
+      "overall": 86
+    },
+    {
+      "name": "Ederson",
+      "overall": 85
+    },
+    {
+      "name": "Bremer",
+      "overall": 85
+    },
+    {
+      "name": "Rodrygo",
+      "overall": 85
+    }
+  ],
+  "COL": [
+    {
+      "name": "L. Díaz",
+      "overall": 85
+    }
+  ],
+  "CZE": [
+    {
+      "name": "P. Schick",
+      "overall": 85
+    }
+  ],
+  "ECU": [
+    {
+      "name": "M. Caicedo",
+      "overall": 87
+    },
+    {
+      "name": "W. Pacho",
+      "overall": 86
+    }
+  ],
+  "EGY": [
+    {
+      "name": "M. Salah",
+      "overall": 91
+    }
+  ],
+  "ENG": [
+    {
+      "name": "J. Bellingham",
+      "overall": 90
+    },
+    {
+      "name": "H. Kane",
+      "overall": 89
+    },
+    {
+      "name": "B. Saka",
+      "overall": 88
+    },
+    {
+      "name": "D. Rice",
+      "overall": 87
+    },
+    {
+      "name": "C. Palmer",
+      "overall": 87
+    },
+    {
+      "name": "T. Alexander-Arnold",
+      "overall": 86
+    },
+    {
+      "name": "P. Foden",
+      "overall": 85
+    }
+  ],
+  "ESP": [
+    {
+      "name": "Rodri",
+      "overall": 90
+    },
+    {
+      "name": "Pedri",
+      "overall": 89
+    },
+    {
+      "name": "Lamine Yamal",
+      "overall": 89
+    },
+    {
+      "name": "David Raya",
+      "overall": 87
+    },
+    {
+      "name": "Nico Williams",
+      "overall": 86
+    },
+    {
+      "name": "Carvajal",
+      "overall": 85
+    },
+    {
+      "name": "Fabián Ruiz",
+      "overall": 85
+    },
+    {
+      "name": "Unai Simón",
+      "overall": 85
+    },
+    {
+      "name": "Dani Olmo",
+      "overall": 85
+    }
+  ],
+  "FRA": [
+    {
+      "name": "K. Mbappé",
+      "overall": 91
+    },
+    {
+      "name": "O. Dembélé",
+      "overall": 90
+    },
+    {
+      "name": "M. Maignan",
+      "overall": 87
+    },
+    {
+      "name": "J. Koundé",
+      "overall": 87
+    },
+    {
+      "name": "W. Saliba",
+      "overall": 87
+    },
+    {
+      "name": "I. Konaté",
+      "overall": 86
+    },
+    {
+      "name": "M. Olise",
+      "overall": 86
+    },
+    {
+      "name": "M. Thuram",
+      "overall": 85
+    },
+    {
+      "name": "D. Upamecano",
+      "overall": 85
+    },
+    {
+      "name": "D. Doué",
+      "overall": 85
+    }
+  ],
+  "GER": [
+    {
+      "name": "J. Kimmich",
+      "overall": 89
+    },
+    {
+      "name": "F. Wirtz",
+      "overall": 89
+    },
+    {
+      "name": "J. Tah",
+      "overall": 87
+    },
+    {
+      "name": "M. ter Stegen",
+      "overall": 86
+    },
+    {
+      "name": "A. Rüdiger",
+      "overall": 86
+    }
+  ],
+  "KOR": [
+    {
+      "name": "H. Son",
+      "overall": 85
+    }
+  ],
+  "MAR": [
+    {
+      "name": "A. Hakimi",
+      "overall": 89
+    }
+  ],
+  "NED": [
+    {
+      "name": "V. van Dijk",
+      "overall": 90
+    },
+    {
+      "name": "F. de Jong",
+      "overall": 87
+    },
+    {
+      "name": "T. Reijnders",
+      "overall": 86
+    },
+    {
+      "name": "R. Gravenberch",
+      "overall": 85
+    }
+  ],
+  "NOR": [
+    {
+      "name": "E. Haaland",
+      "overall": 90
+    },
+    {
+      "name": "M. Ødegaard",
+      "overall": 87
+    }
+  ],
+  "POR": [
+    {
+      "name": "Vitinha",
+      "overall": 89
+    },
+    {
+      "name": "Bruno Fernandes",
+      "overall": 87
+    },
+    {
+      "name": "Rúben Dias",
+      "overall": 86
+    },
+    {
+      "name": "Nuno Mendes",
+      "overall": 86
+    },
+    {
+      "name": "Cristiano Ronaldo",
+      "overall": 85
+    },
+    {
+      "name": "João Neves",
+      "overall": 85
+    }
+  ],
+  "SCO": [
+    {
+      "name": "S. McTominay",
+      "overall": 85
+    }
+  ],
+  "SUI": [
+    {
+      "name": "Y. Sommer",
+      "overall": 87
+    },
+    {
+      "name": "G. Kobel",
+      "overall": 86
+    },
+    {
+      "name": "G. Xhaka",
+      "overall": 85
+    }
+  ],
+  "SWE": [
+    {
+      "name": "A. Isak",
+      "overall": 88
+    },
+    {
+      "name": "V. Gyökeres",
+      "overall": 87
+    }
+  ],
+  "TUR": [
+    {
+      "name": "H. Çalhanoğlu",
+      "overall": 86
+    }
+  ],
+  "URU": [
+    {
+      "name": "F. Valverde",
+      "overall": 89
+    }
+  ]
+}

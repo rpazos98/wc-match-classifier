@@ -16,6 +16,7 @@ import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
 import { loadPrecomputedSimulation } from './api/matches';
 import { applyPersonalScoring } from './scoring/personal';
+import { loadScoringData, type ScoringData } from './scoring/classify';
 import { useSimulation, convertToSimulationResponse } from './simulation';
 import type { TeamProfile, GroupMatch } from './simulation';
 import type { SimulationResponse, Profile } from './types';
@@ -39,6 +40,7 @@ function AppInner() {
   const [teamProfiles, setTeamProfiles] = useState<Record<string, TeamProfile> | null>(null);
   const [teamGroups, setTeamGroups] = useState<Record<string, string> | null>(null);
   const [groupMatches, setGroupMatches] = useState<GroupMatch[] | null>(null);
+  const scoringDataRef = useRef<ScoringData | null>(null);
 
   // FE simulation worker
   const sim = useSimulation();
@@ -49,11 +51,15 @@ function AppInner() {
   // SWR: auto-fetch + cache matches (depends on profile)
   const { matchData, groups: rawGroups, error: matchError, isLoading: matchesLoading, refresh: refreshMatches } = useMatches(profile);
 
-  // Load team profiles + groups for FE simulation
+  // Load team profiles + scoring data for FE simulation
   useEffect(() => {
     fetch(`${BASE}data/team_profiles.json`)
       .then(r => r.json())
-      .then(setTeamProfiles)
+      .then((profiles: Record<string, TeamProfile>) => {
+        setTeamProfiles(profiles);
+        // Load scoring data (stars, h2h) once profiles are ready
+        loadScoringData(profiles).then(sd => { scoringDataRef.current = sd; });
+      })
       .catch(() => {});
   }, []);
 
@@ -120,9 +126,10 @@ function AppInner() {
     const data = convertToSimulationResponse(
       sim.result,
       matchData.matches.filter(m => m.stage === 'group'),
-      sim.result.nSims, // seed not tracked separately; use nSims placeholder
+      sim.result.nSims,
       matchData.weights,
       matchData.default_weights,
+      scoringDataRef.current,
     );
 
     rawSimData.current = data;
