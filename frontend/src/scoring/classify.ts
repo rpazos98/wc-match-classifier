@@ -39,6 +39,8 @@ export interface IntrinsicScores {
   detail_by_scorer: Record<string, string>;
   prediction: Record<string, number> | null;
   stars: Array<{ name: string; team: string; overall: number }> | null;
+  archetype: { key: string; icon: string; label: string } | null;
+  narrative: string | null;
   total: number;
 }
 
@@ -273,6 +275,90 @@ function scoreMatchStage(stage: string): [number, string] {
   return [raw, label];
 }
 
+// ── Archetype & narrative ────────────────────────────────────────────────────
+
+const STAGE_NARRATIVE: Record<string, string> = {
+  group: 'fase de grupos',
+  r32: '16vos de final',
+  r16: 'octavos de final',
+  qf: 'cuartos de final',
+  sf: 'semifinal',
+  third_place: 'tercer lugar',
+  final: 'la gran final',
+};
+
+function matchArchetype(
+  raw: Record<string, number>,
+  _entropy: number,
+): { key: string; icon: string; label: string } {
+  const tension = raw['Competitive Tension'] ?? 0;
+  const chaos = raw['Chaos Potential'] ?? 0;
+  const stage = raw['Match Stage'] ?? 0;
+  const narr = raw['Narrative'] ?? 0;
+  const stars = raw['Star Power'] ?? 0;
+
+  const archetypes: Array<[string, string, string, number]> = [];
+
+  if (stage >= 0.7)
+    archetypes.push(['decisive', '\u{1F525}', 'Partido decisivo', stage]);
+  if (tension >= 0.55 && chaos >= 0.55)
+    archetypes.push(['spectacle', '\u{1F3AD}', 'Espectáculo asegurado', (tension + chaos) / 2]);
+  if (chaos >= 0.6)
+    archetypes.push(['chaos', '\u26A1', 'Partido abierto', chaos]);
+  if (narr >= 0.4)
+    archetypes.push(['rivalry', '\u2694\uFE0F', 'Clásico con historia', narr]);
+  if (stars >= 0.5)
+    archetypes.push(['showcase', '\u{1F451}', 'Exhibición de estrellas', stars]);
+  if (tension >= 0.7 && chaos < 0.55)
+    archetypes.push(['tactical', '\u{1F9E0}', 'Duelo táctico', tension]);
+
+  if (archetypes.length > 0) {
+    const best = archetypes.reduce((a, b) => (b[3] > a[3] ? b : a));
+    return { key: best[0], icon: best[1], label: best[2] };
+  }
+
+  if (tension >= 0.6)
+    return { key: 'balanced', icon: '\u2696\uFE0F', label: 'Partido equilibrado' };
+  return { key: 'standard', icon: '\u26BD', label: 'Partido de grupo' };
+}
+
+function matchNarrative(
+  home: string,
+  away: string,
+  stage: string,
+  raw: Record<string, number>,
+  entropy: number,
+): string {
+  const tension = raw['Competitive Tension'] ?? 0;
+  const chaos = raw['Chaos Potential'] ?? 0;
+  const stageRaw = raw['Match Stage'] ?? 0;
+  const narr = raw['Narrative'] ?? 0;
+  const stageName = STAGE_NARRATIVE[stage] ?? stage;
+
+  const parts: string[] = [];
+
+  if (stageRaw >= 0.75)
+    parts.push(`Partido de ${stageName} con todo en juego.`);
+  else if (stageRaw >= 0.35)
+    parts.push(`Encuentro de ${stageName} con implicaciones en la tabla.`);
+  else
+    parts.push(`Duelo de ${stageName}.`);
+
+  if (tension >= 0.55 && chaos >= 0.55)
+    parts.push('Parejo y con goles esperados \u2014 la combinación que más emoción genera.');
+  else if (tension >= 0.7)
+    parts.push('Equipos muy parejos \u2014 resultado completamente abierto.');
+  else if (chaos >= 0.6)
+    parts.push('Partido abierto donde se esperan goles.');
+  else if (entropy < 0.6)
+    parts.push('Un favorito claro, pero el fútbol siempre sorprende.');
+
+  if (narr >= 0.5)
+    parts.push(`Historia previa entre ${home} y ${away} añade tensión.`);
+
+  return parts.join(' ');
+}
+
 // ── Main scoring function ────────────────────────────────────────────────────
 
 export function scoreKOMatch(
@@ -340,6 +426,9 @@ export function scoreKOMatch(
     entropy: Math.round(pred.entropy * 1000) / 1000,
   };
 
+  const archetype = matchArchetype(raw_by_scorer, pred.entropy);
+  const narrative = matchNarrative(homeCode, awayCode, stage, raw_by_scorer, pred.entropy);
+
   return {
     breakdown,
     raw_by_scorer,
@@ -348,6 +437,8 @@ export function scoreKOMatch(
     detail_by_scorer: {},
     prediction,
     stars: starsArr,
+    archetype,
+    narrative,
     total: Math.round(Math.min(total, 100) * 10) / 10,
   };
 }
