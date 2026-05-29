@@ -14,17 +14,10 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn, onOpenC
 
   const hasProfile = profile && Object.keys(profile.team_affinities ?? {}).length > 0;
 
-  const simLabel = simulating
-    ? 'Simulando...'
-    : simulated
-      ? 'Simulado'
-      : 'Simular';
-
   const steps = [
-    { num: 1, label: 'Perfil',        done: !!hasProfile, active: false,                    onClick: onOpenProfile, disabled: false },
-    { num: 2, label: 'Partidos',      done: false,       active: activeTab === 'matches',  onClick: undefined,     disabled: false },
-    { num: 3, label: simLabel,        done: simulated,   active: simulating,               onClick: onSimulate,    disabled: simulating },
-    { num: 4, label: 'Personalizar',  done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
+    { num: 1, label: 'Perfil',        done: !!hasProfile, active: false,                   onClick: onOpenProfile, disabled: false },
+    { num: 2, label: 'Partidos',      done: simulated,   active: activeTab === 'matches',  onClick: () => dispatch({ type: 'SET_TAB', tab: 'matches' }), disabled: false },
+    { num: 3, label: 'Personalizar',  done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
   ];
 
   return (
@@ -82,11 +75,14 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn, onOpenC
         <button className="btn btn-icon" onClick={onOpenCreator} title="Crear partido hipotetico">
           &#x2795;
         </button>
-        {simulated && !simulating && (
-          <button className="btn btn-icon" onClick={onSimulate} title="Re-simular con nueva semilla">
-            🔄
-          </button>
-        )}
+        <button
+          className="btn btn-icon"
+          onClick={onSimulate}
+          disabled={simulating}
+          title={simulated ? 'Re-simular con nueva semilla' : 'Simular 5000 brackets'}
+        >
+          {simulating ? '⏳' : simulated ? '🔄' : '▶️'}
+        </button>
       </div>
     </header>
   );

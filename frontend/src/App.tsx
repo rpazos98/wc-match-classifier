@@ -14,7 +14,6 @@ import ProfileEditModal from './components/profile/ProfileEditModal';
 import type { EditSection } from './components/profile/ProfileEditModal';
 import { useMatches } from './hooks/useMatches';
 import { useProfile } from './hooks/useProfile';
-import { loadPrecomputedSimulation } from './api/matches';
 import { applyPersonalScoring } from './scoring/personal';
 import { loadScoringData, type ScoringData } from './scoring/classify';
 import { useSimulation, convertToSimulationResponse } from './simulation';
@@ -33,7 +32,6 @@ function AppInner() {
   const [learnOpen, setLearnOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
-  const precomputedLoaded = useRef(false);
   const rawSimData = useRef<SimulationResponse | null>(null);
 
   // Simulation data loaded once
@@ -98,18 +96,7 @@ function AppInner() {
     if (rawGroups) setTeamGroups(rawGroups);
   }, [rawGroups]);
 
-  // Load pre-computed simulation on startup
-  useEffect(() => {
-    if (precomputedLoaded.current) return;
-    precomputedLoaded.current = true;
-    loadPrecomputedSimulation()
-      .then((data) => {
-        rawSimData.current = data;
-        applySimulation(data, profile);
-      })
-      .catch(() => { /* pre-computed not available, user can simulate manually */ });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Pre-computed simulation no longer auto-loaded — user triggers via "Partidos"
 
   // Re-apply personal scoring to simulation when profile changes
   useEffect(() => {
@@ -126,7 +113,7 @@ function AppInner() {
     const data = convertToSimulationResponse(
       sim.result,
       matchData.matches.filter(m => m.stage === 'group'),
-      sim.result.nSims,
+      lastSeedRef.current,
       matchData.weights,
       matchData.default_weights,
       scoringDataRef.current,
@@ -134,7 +121,6 @@ function AppInner() {
 
     rawSimData.current = data;
     applySimulation(data, profile);
-    dispatch({ type: 'SET_TAB', tab: 'bracket' });
     toast(`Simulacion completa — ${sim.result.nSims} sims en ${Math.round(sim.elapsedMs ?? 0)}ms`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.result]);
@@ -194,6 +180,8 @@ function AppInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchError]);
 
+  const lastSeedRef = useRef<number>(0);
+
   const handleSimulate = useCallback(() => {
     if (!teamProfiles || !teamGroups || !groupMatches) {
       toast('\u26A0 Datos no cargados aún');
@@ -202,8 +190,9 @@ function AppInner() {
 
     dispatch({ type: 'SET_SIMULATING' });
     const seed = Date.now();
+    lastSeedRef.current = seed;
     sim.run(groupMatches, teamGroups, teamProfiles, 5000, seed, state.simEngine);
-  }, [dispatch, toast, state.simEngine, teamProfiles, teamGroups, groupMatches, sim]);
+  }, [dispatch, toast, state.simEngine, teamProfiles, teamGroups, groupMatches, sim, simulated]);
 
   const handleLearnClose = useCallback(() => {
     setLearnOpen(false);
