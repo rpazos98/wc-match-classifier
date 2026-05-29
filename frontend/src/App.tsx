@@ -165,10 +165,15 @@ function AppInner() {
     }
   }, [profile, hasAutoOpened]);
 
-  // Auto-select top match when matches first load and nothing is selected
+  // Auto-select top match only on first load (desktop)
+  const hasAutoSelected = useRef(false);
   useEffect(() => {
-    if (state.matches.length > 0 && !state.selectedId) {
-      dispatch({ type: 'SELECT_MATCH', id: state.matches[0].match_id });
+    if (state.matches.length > 0 && !state.selectedId && !hasAutoSelected.current) {
+      hasAutoSelected.current = true;
+      // Skip auto-select on narrow screens — detail is an overlay there
+      if (window.innerWidth > 768) {
+        dispatch({ type: 'SELECT_MATCH', id: state.matches[0].match_id });
+      }
     }
   }, [state.matches, state.selectedId, dispatch]);
 

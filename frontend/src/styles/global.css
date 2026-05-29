@@ -1939,6 +1939,28 @@ input[type="checkbox"] { accent-color: var(--green); cursor: pointer; width: 16p
 .player-item { font-size: 13px; font-weight: 600; }
 .avail-item  { font-size: 12px; font-weight: 600; }
 
+/* ── Detail close button (mobile only) ── */
+.detail-close-btn {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  background: var(--surf2);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 2;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 768px) {
+  .detail-close-btn { display: flex; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    Responsive — mobile first breakpoints
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -2035,4 +2057,28 @@ input[type="checkbox"] { accent-color: var(--green); cursor: pointer; width: 16p
   /* Buttons */
   .btn { padding: 6px 10px; font-size: 12px; }
   .btn-icon { padding: 5px 8px; }
+
+  /* Hide compare button on mobile */
+  .comp-pin-btn { display: none !important; }
+
+  /* Detail panel: fullscreen overlay on mobile when match selected */
+  #detail {
+    display: none;
+  }
+  #detail.detail-open {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    width: 100% !important;
+    height: 100%;
+    background: var(--surf);
+    overflow-y: auto;
+    border: none;
+    animation: detail-slide-up 0.2s ease-out;
+  }
+  @keyframes detail-slide-up {
+    from { transform: translateY(40px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
 }

@@ -202,6 +202,7 @@ function SimPath({
 export default function DetailPanel() {
   const { selectedId, matchById, pinnedId } = useAppState();
   const dispatch = useAppDispatch();
+  const closeDetail = useCallback(() => dispatch({ type: 'SELECT_MATCH', id: null }), [dispatch]);
 
   const m = selectedId ? matchById[selectedId] : null;
   const pinnedMatch = pinnedId ? matchById[pinnedId] : null;
@@ -232,6 +233,8 @@ export default function DetailPanel() {
     );
   }
 
+  const hasSelection = !!m;
+
   const color = scoreColor(m.score);
   const intrinsic = m.intrinsic_score ?? 0;
   const personal = m.personal_score ?? 0;
@@ -242,10 +245,13 @@ export default function DetailPanel() {
   };
 
   return (
-    <aside id="detail">
+    <aside id="detail" className={hasSelection ? 'detail-open' : ''}>
       <div id="detail-match">
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="det-header">
+          <button className="detail-close-btn" onClick={closeDetail} aria-label="Cerrar">
+            ✕
+          </button>
           <div
             style={{
               display: 'flex',
