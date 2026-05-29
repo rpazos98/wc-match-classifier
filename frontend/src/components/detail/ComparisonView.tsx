@@ -61,7 +61,7 @@ export default function ComparisonView({ matchA, matchB }: Props) {
           style={{ fontSize: 10, padding: '3px 10px', alignSelf: 'flex-end' }}
           onClick={handleClose}
         >
-          × Cerrar comparación
+          × Close comparison
         </button>
       </div>
 
@@ -126,7 +126,7 @@ export default function ComparisonView({ matchA, matchB }: Props) {
             Δ {diff}
           </span>
         ) : (
-          <span style={{ color: 'var(--muted)', fontSize: 11 }}>Empate</span>
+          <span style={{ color: 'var(--muted)', fontSize: 11 }}>Draw</span>
         )}
       </div>
     </div>

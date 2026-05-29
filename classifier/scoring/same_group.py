@@ -43,7 +43,7 @@ class SameGroupScorer(BaseScorer):
         playing = [t for t in (home, away) if t in favs]
         if playing:
             best_aff = max(fav_affs[t] for t in playing)
-            return best_aff, f"Partido del grupo de tu equipo ({_affinity_label(best_aff)})"
+            return best_aff, f"Your team's group match ({_affinity_label(best_aff)})"
 
         # Other teams in same group → affects standings, scaled by fav tier
         match_groups = {groups.get(home), groups.get(away)} - {None}
@@ -52,13 +52,13 @@ class SameGroupScorer(BaseScorer):
             grp  = ", ".join(sorted(shared))
             fav  = next(f for f in favs if groups.get(f) in shared)
             aff  = fav_affs[fav]
-            return 0.7 * aff, f"Grupo {grp} — afecta la tabla de {fav}"
+            return 0.7 * aff, f"Group {grp} — affects {fav}'s standings"
 
         return 0.0, ""
 
     def detail(self, ctx: ScoringContext, raw: float) -> str:
         if ctx.match.stage != Stage.GROUP:
-            return "Solo aplica en fase de grupos"
+            return "Only applies in group stage"
         if raw > 0:
-            return f"Escalado por afinidad del equipo → raw = {raw:.2f}"
-        return "Grupo sin equipos de tu interés → raw = 0.0"
+            return f"Scaled by team affinity → raw = {raw:.2f}"
+        return "No teams of interest in this group → raw = 0.0"

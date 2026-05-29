@@ -16,9 +16,9 @@ export default function ScoreRing({ score, label, emoji }: ScoreRingProps) {
 
   // Label badge colours
   const lColors: Record<string, string> = {
-    Imperdible: '#e83333',
-    'Vale la pena': '#e89515',
-    'Para ver el resumen': '#4a6035',
+    'Must Watch': '#e83333',
+    'Worth Watching': '#e89515',
+    'Catch the Highlights': '#4a6035',
   };
   const lColor = lColors[label] ?? '#4a6035';
 

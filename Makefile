@@ -1,4 +1,7 @@
-.PHONY: build serve docker-build docker-run export-data build-pages
+.PHONY: build dev serve docker-build docker-run export-data build-pages
+
+dev:
+	cd frontend && npm run dev
 
 build:
 	cd frontend && npm run build

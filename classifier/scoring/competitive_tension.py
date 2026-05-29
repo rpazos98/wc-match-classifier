@@ -61,11 +61,11 @@ class CompetitiveTensionScorer(BaseScorer):
         self._last = (entropy, prestige, avg_elo, pred, base, vecer_bonus)
 
         if raw >= 0.75:
-            return raw, f"{home} vs {away} — duelo de élites completamente abierto"
+            return raw, f"{home} vs {away} — wide-open clash between elite sides"
         if raw >= 0.55:
-            return raw, f"{home} vs {away} — partido equilibrado de buen nivel"
+            return raw, f"{home} vs {away} — well-matched quality contest"
         if raw >= 0.40:
-            return raw, f"{home} vs {away} — resultado incierto"
+            return raw, f"{home} vs {away} — uncertain outcome"
         return raw, ""
 
     def detail(self, ctx: ScoringContext, raw: float) -> str:
@@ -73,16 +73,16 @@ class CompetitiveTensionScorer(BaseScorer):
             return ""
         entropy, prestige, avg_elo, pred, base, vecer_bonus = self._last
         lines = (
-            f"Probabilidades: {pred.p_home:.0%} / {pred.p_draw:.0%} / {pred.p_away:.0%}\n"
-            f"Entropía Shannon normalizada = {entropy:.2f}\n"
-            f"ELO promedio = {avg_elo:.0f} → prestigio = {prestige:.2f}\n"
-            f"Base: entropy^0.7 × (0.4 + 0.6 × prestigio)\n"
+            f"Probabilities: {pred.p_home:.0%} / {pred.p_draw:.0%} / {pred.p_away:.0%}\n"
+            f"Normalized Shannon entropy = {entropy:.2f}\n"
+            f"Avg ELO = {avg_elo:.0f} → prestige = {prestige:.2f}\n"
+            f"Base: entropy^0.7 × (0.4 + 0.6 × prestige)\n"
             f"= {entropy:.2f}^0.7 × (0.4 + 0.6 × {prestige:.2f}) = {base:.2f}"
         )
         if vecer_bonus > 0.001:
             lines += (
-                f"\nCorrección Vecer: p_underdog = {pred.p_underdog:.2f} → bonus = +{vecer_bonus:.3f}"
-                f"\n(Vecer 2007: leve favorito → más potencial de sorpresa)"
+                f"\nVecer correction: p_underdog = {pred.p_underdog:.2f} → bonus = +{vecer_bonus:.3f}"
+                f"\n(Vecer 2007: slight favorite → more upset potential)"
             )
         lines += f"\nRaw final = {raw:.2f}"
         return lines

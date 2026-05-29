@@ -36,8 +36,8 @@ class FormScorer(BaseScorer):
 
         hot = [t for t, v in deltas.items() if v >= 0.65]
         if hot:
-            names = " y ".join(hot)
-            return raw, f"{names} en gran momento de forma"
+            names = " & ".join(hot)
+            return raw, f"{names} in great form"
         return raw, ""
 
     def detail(self, ctx: ScoringContext, raw: float) -> str:
@@ -47,8 +47,8 @@ class FormScorer(BaseScorer):
         lines = []
         for team, norm in self._last.items():
             fd = form_delta(team)
-            lines.append(f"{team}: Δ ELO reciente = {fd:+.2f} → normalizado = {norm:.2f}")
-        lines.append(f"Fórmula: (suma + máximo) / (n + 1)")
+            lines.append(f"{team}: recent ELO Δ = {fd:+.2f} → normalized = {norm:.2f}")
+        lines.append(f"Formula: (sum + max) / (n + 1)")
         vals = list(self._last.values())
         lines.append(f"= ({sum(vals):.2f} + {max(vals):.2f}) / {len(vals)+1} = {raw:.2f}")
         return "\n".join(lines)

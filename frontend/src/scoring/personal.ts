@@ -1,13 +1,14 @@
 /**
  * Client-side personal scoring — computes Favorite Team, Same Group,
- * and synergy bonuses (Momento) from pre-computed match data + user profile.
+ * and synergy bonuses (Momentum) from pre-computed match data + user profile.
  *
  * All other scorers are pre-computed server-side and loaded from static JSON.
  */
 
 import type { Match, Profile, MatchesResponse } from "../types";
+import { LBL_IMP, LBL_VALE, LBL_RES } from "../utils/labels";
 
-const PERSONAL_SCORERS = new Set(["Favorite Team", "Same Group", "Momento"]);
+const PERSONAL_SCORERS = new Set(["Favorite Team", "Same Group", "Momentum"]);
 
 interface MatchWithGroups extends Match {
   home_group?: string | null;
@@ -97,9 +98,9 @@ export function applyPersonalScoring(
       delete newReason[k];
       delete newDetail[k];
     }
-    // Also remove Espectáculo synergy key — we'll recompute
-    delete newBreakdown["Espectáculo"];
-    delete newRaw["Espectáculo"];
+    // Also remove Spectacle synergy key — we'll recompute
+    delete newBreakdown["Spectacle"];
+    delete newRaw["Spectacle"];
 
     // Sum intrinsic contributions
     for (const v of Object.values(newBreakdown)) {
@@ -125,42 +126,42 @@ export function applyPersonalScoring(
       newBreakdown["Same Group"] = Math.round(sgContrib * 10) / 10;
       total += sgContrib;
 
-      // Momento synergy: fav × stage × 8
+      // Momentum synergy: fav × stage × 8
       const stageRaw = newRaw["Match Stage"] ?? 0;
       if (favRaw > 0.3 && stageRaw > 0.35) {
         const synergy = favRaw * stageRaw * 8.0;
-        newBreakdown["Momento"] = Math.round(synergy * 10) / 10;
-        newRaw["Momento"] = Math.round(favRaw * stageRaw * 10000) / 10000;
-        newWeight["Momento"] = 0.08;
+        newBreakdown["Momentum"] = Math.round(synergy * 10) / 10;
+        newRaw["Momentum"] = Math.round(favRaw * stageRaw * 10000) / 10000;
+        newWeight["Momentum"] = 0.08;
         total += synergy;
       }
     }
 
-    // Espectáculo synergy: tension × chaos × 6
+    // Spectacle synergy: tension × chaos × 6
     const tensionRaw = newRaw["Competitive Tension"] ?? 0;
     const chaosRaw = newRaw["Chaos Potential"] ?? 0;
     if (tensionRaw > 0.45 && chaosRaw > 0.45) {
       const vecer = tensionRaw * chaosRaw * 6.0;
-      newBreakdown["Espectáculo"] = Math.round(vecer * 10) / 10;
-      newRaw["Espectáculo"] = Math.round(tensionRaw * chaosRaw * 10000) / 10000;
-      newWeight["Espectáculo"] = 0.06;
+      newBreakdown["Spectacle"] = Math.round(vecer * 10) / 10;
+      newRaw["Spectacle"] = Math.round(tensionRaw * chaosRaw * 10000) / 10000;
+      newWeight["Spectacle"] = 0.06;
       total += vecer;
     }
 
     const finalScore = Math.round(Math.min(total, 100) * 10) / 10;
     const label =
       finalScore >= 60
-        ? "Imperdible"
+        ? LBL_IMP
         : finalScore >= 30
-          ? "Vale la pena"
-          : "Para ver el resumen";
+          ? LBL_VALE
+          : LBL_RES;
     const emoji =
       finalScore >= 60 ? "🔥" : finalScore >= 30 ? "👀" : "📋";
 
     const personalTotal = Math.round(
       (newBreakdown["Favorite Team"] ?? 0) +
       (newBreakdown["Same Group"] ?? 0) +
-      (newBreakdown["Momento"] ?? 0),
+      (newBreakdown["Momentum"] ?? 0),
     );
 
     return {

@@ -56,7 +56,7 @@ export default function MatchRow({ match: m }: Props) {
       </span>
       {archTag && <span className="mr-arch">{archTag}</span>}
       {isKoSim && (
-        <span className="ko-sim-badge" title="Equipos por simulaci\u00f3n">
+        <span className="ko-sim-badge" title="Teams from simulation">
           sim
         </span>
       )}

@@ -13,14 +13,14 @@ const CONF_LABELS: Record<string, string> = {
   CONMEBOL: 'CONMEBOL',
   UEFA: 'UEFA',
   CONCACAF: 'CONCACAF',
-  CAF: '\u00c1frica',
-  AFC: 'Asia / Medio Oriente',
-  OFC: 'Ocean\u00eda',
+  CAF: 'Africa',
+  AFC: 'Asia / Middle East',
+  OFC: 'Oceania',
 };
 
 const SECTION_TITLES: Record<EditSection, string> = {
-  name: '\u00bfC\u00f3mo te llamamos?',
-  teams: '\u00bfA qui\u00e9n vas?',
+  name: 'What should we call you?',
+  teams: 'Who do you support?',
 };
 
 function tierClass(tier: string): string {
@@ -133,7 +133,7 @@ export default function ProfileEditModal({ section, onClose, onSave }: Props) {
               <input
                 type="text"
                 style={{ width: '100%', maxWidth: 340 }}
-                placeholder="Ej: Rodrigo"
+                placeholder="e.g. John"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
@@ -145,10 +145,10 @@ export default function ProfileEditModal({ section, onClose, onSave }: Props) {
           {section === 'teams' && (
             <div>
               <div className="wiz-step-hint" style={{ marginBottom: 12 }}>
-                Click cicla el nivel:{' '}
-                <span className="tier-badge tier-badge-s">S</span> Favorito →{' '}
-                <span className="tier-badge tier-badge-a">A</span> Me gusta →{' '}
-                <span className="tier-badge tier-badge-b">B</span> Casual → sin inter&eacute;s.
+                Click cycles the tier:{' '}
+                <span className="tier-badge tier-badge-s">S</span> Favorite →{' '}
+                <span className="tier-badge tier-badge-a">A</span> Like →{' '}
+                <span className="tier-badge tier-badge-b">B</span> Casual → no interest.
               </div>
               <div id="teams-grid">
                 {CONF_ORDER.map((conf) => {
@@ -185,14 +185,14 @@ export default function ProfileEditModal({ section, onClose, onSave }: Props) {
         </div>
 
         <div className="wiz-nav">
-          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
           <div style={{ flex: 1 }} />
           <button
             className="btn btn-primary"
             onClick={handleSave}
             disabled={saving}
           >
-            {saving ? 'Guardando...' : '\u2713 Guardar'}
+            {saving ? 'Saving...' : '\u2713 Save'}
           </button>
         </div>
       </div>

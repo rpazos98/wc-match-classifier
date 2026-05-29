@@ -15,7 +15,7 @@ export default function Sidebar({ onEditSection }: SidebarProps) {
     return (
       <aside id="sidebar">
         <div id="profile-sidebar">
-          <div style={{ color: 'var(--muted)', fontSize: '11px' }}>Cargando...</div>
+          <div style={{ color: 'var(--muted)', fontSize: '11px' }}>Loading...</div>
         </div>
       </aside>
     );
@@ -55,8 +55,8 @@ export default function Sidebar({ onEditSection }: SidebarProps) {
             style={{ cursor: 'pointer' }}
           >
             <div className="sidebar-cta-icon">&#9881;</div>
-            <p>Configura tus equipos para personalizar los puntajes</p>
-            <span className="sidebar-cta-link">Click para comenzar</span>
+            <p>Set up your teams to personalize the scores</p>
+            <span className="sidebar-cta-link">Click to get started</span>
           </div>
         )}
 
@@ -65,7 +65,7 @@ export default function Sidebar({ onEditSection }: SidebarProps) {
           onClick={() => onEditSection('teams')}
         >
           <div className="sidebar-label">
-            Equipos
+            Teams
             <span className="sidebar-edit-hint">&#9998;</span>
           </div>
           {tierEntries.length > 0 && (
@@ -84,7 +84,7 @@ export default function Sidebar({ onEditSection }: SidebarProps) {
           )}
         </div>
 
-        <div className="sidebar-label">Dimensiones</div>
+        <div className="sidebar-label">Dimensions</div>
         {wEntries.map(([name, w]) => {
           const barW = maxW > 0 ? Math.round((w.max_pts / maxW) * 100) : 0;
           const rawDelta =

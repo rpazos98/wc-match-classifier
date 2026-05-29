@@ -63,51 +63,51 @@ app.add_middleware(
 # ── Labels ────────────────────────────────────────────────────────────────────
 
 _STAGE_LABELS: dict[str, str] = {
-    "group":       "Grupos",
-    "r32":         "16vos",
-    "r16":         "Octavos",
-    "qf":          "Cuartos",
-    "sf":          "Semifinal",
-    "third_place": "3er Lugar",
+    "group":       "Groups",
+    "r32":         "R32",
+    "r16":         "R16",
+    "qf":          "QF",
+    "sf":          "Semi-finals",
+    "third_place": "3rd Place",
     "final":       "FINAL",
 }
 
 _SCORER_LABELS: dict[str, str] = {
-    "Favorite Team":       "Equipo fav.",
-    "Match Stage":         "Fase",
-    "Competitive Tension": "Tensión",
-    "Chaos Potential":   "Caos",
-    "Narrative":         "Historia",
-    "Same Group":        "Mismo grupo",
-    "Form":              "Forma",
-    "Star Power":        "Estrellas",
-    "Momento":           "Momento",
-    "Espectáculo":       "Espectáculo",
+    "Favorite Team":       "Fav. Team",
+    "Match Stage":         "Stage",
+    "Competitive Tension": "Tension",
+    "Chaos Potential":     "Chaos",
+    "Narrative":           "Narrative",
+    "Same Group":          "Same Group",
+    "Form":                "Form",
+    "Star Power":          "Stars",
+    "Momentum":            "Momentum",
+    "Spectacle":           "Spectacle",
 }
 
 _SCORER_DESCS: dict[str, str] = {
-    "Favorite Team":       "Qué tanto te importa este equipo",
-    "Match Stage":         "Importancia de la ronda — los stakes son el predictor más robusto (Jennett 1984)",
-    "Competitive Tension": "Paridad y prestigio — leve favorito > 50-50 puro (Vecer 2007)",
-    "Chaos Potential":     "Goles esperados — más goles = más cambios de probabilidad (Vecer 2007)",
-    "Narrative":           "Rivalidades históricas — efecto real pero inconsistente (Tyler 2024)",
-    "Same Group":          "Partido entre equipos del mismo grupo",
-    "Form":                "Momento actual de los equipos (racha reciente)",
-    "Star Power":          "Calidad de figuras — el factor más fuerte según la evidencia (Cox 2023)",
-    "Momento":             "Bonus por tu equipo en un partido de alta importancia",
-    "Espectáculo":         "Parejo + goleador = emoción desproporcionada (Vecer 2007)",
+    "Favorite Team":       "How much you care about this team",
+    "Match Stage":         "Round importance — stakes are the most robust predictor (Jennett 1984)",
+    "Competitive Tension": "Parity and prestige — slight favorite > pure 50-50 (Vecer 2007)",
+    "Chaos Potential":     "Expected goals — more goals = more probability swings (Vecer 2007)",
+    "Narrative":           "Historical rivalries — real but inconsistent effect (Tyler 2024)",
+    "Same Group":          "Match between teams in the same group",
+    "Form":                "Current form of the teams (recent streak)",
+    "Star Power":          "Player quality — the strongest factor per evidence (Cox 2023)",
+    "Momentum":            "Bonus for your team in a high-stakes match",
+    "Spectacle":           "Close + high-scoring = disproportionate excitement (Vecer 2007)",
 }
 
-_PERSONAL_SCORERS = {"Favorite Team", "Same Group", "Momento"}
+_PERSONAL_SCORERS = {"Favorite Team", "Same Group", "Momentum"}
 
 _STAGE_NARRATIVE = {
-    "group":       "fase de grupos",
-    "r32":         "16vos de final",
-    "r16":         "octavos de final",
-    "qf":          "cuartos de final",
-    "sf":          "semifinal",
-    "third_place": "tercer lugar",
-    "final":       "la gran final",
+    "group":       "group stage",
+    "r32":         "round of 32",
+    "r16":         "round of 16",
+    "qf":          "quarter-finals",
+    "sf":          "semi-finals",
+    "third_place": "third place",
+    "final":       "the grand final",
 }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -170,28 +170,28 @@ def _match_archetype(raw: dict[str, float], pred: dict | None, bd: dict[str, flo
     archetypes = []
 
     if r_stage >= 0.7:
-        archetypes.append(("decisive", "🔥", "Partido decisivo", r_stage))
+        archetypes.append(("decisive", "🔥", "Decisive match", r_stage))
     if r_tension >= 0.55 and r_chaos >= 0.55:
         score = (r_tension + r_chaos) / 2
-        archetypes.append(("spectacle", "🎭", "Espectáculo asegurado", score))
+        archetypes.append(("spectacle", "🎭", "Guaranteed spectacle", score))
     if r_chaos >= 0.6:
-        archetypes.append(("chaos", "⚡", "Partido abierto", r_chaos))
+        archetypes.append(("chaos", "⚡", "Open match", r_chaos))
     if r_narr >= 0.4:
-        archetypes.append(("rivalry", "⚔️", "Clásico con historia", r_narr))
+        archetypes.append(("rivalry", "⚔️", "Historic rivalry", r_narr))
     if r_stars >= 0.5:
-        archetypes.append(("showcase", "👑", "Exhibición de estrellas", r_stars))
+        archetypes.append(("showcase", "👑", "Star showcase", r_stars))
     if r_upset >= 0.8 and entropy < 0.80:
-        archetypes.append(("upset", "💥", "Potencial de sorpresa", r_upset))
+        archetypes.append(("upset", "💥", "Upset potential", r_upset))
     if r_tension >= 0.7 and r_chaos < 0.55:
-        archetypes.append(("tactical", "🧠", "Duelo táctico", r_tension))
+        archetypes.append(("tactical", "🧠", "Tactical duel", r_tension))
 
     if archetypes:
         best = max(archetypes, key=lambda x: x[3])
         return {"key": best[0], "icon": best[1], "label": best[2]}
 
     if r_tension >= 0.6:
-        return {"key": "balanced", "icon": "⚖️", "label": "Partido equilibrado"}
-    return {"key": "standard", "icon": "⚽", "label": "Partido de grupo"}
+        return {"key": "balanced", "icon": "⚖️", "label": "Balanced match"}
+    return {"key": "standard", "icon": "⚽", "label": "Group match"}
 
 
 def _match_narrative(
@@ -208,23 +208,23 @@ def _match_narrative(
     parts = []
     stage_name = _STAGE_NARRATIVE.get(stage_val, "")
     if stage >= 0.75:
-        parts.append(f"Partido de {stage_name} con todo en juego.")
+        parts.append(f"{stage_name} match with everything on the line.")
     elif stage >= 0.35:
-        parts.append(f"Encuentro de {stage_name} con implicaciones en la tabla.")
+        parts.append(f"{stage_name} encounter with table implications.")
     else:
-        parts.append(f"Duelo de {stage_name}.")
+        parts.append(f"{stage_name} clash.")
 
     if tension >= 0.55 and chaos >= 0.55:
-        parts.append("Parejo y con goles esperados — la combinación que más emoción genera.")
+        parts.append("Close and high-scoring — the combination that generates the most excitement.")
     elif tension >= 0.7:
-        parts.append("Equipos muy parejos — resultado completamente abierto.")
+        parts.append("Evenly matched teams — wide-open outcome.")
     elif chaos >= 0.6:
-        parts.append("Partido abierto donde se esperan goles.")
+        parts.append("Open match where goals are expected.")
     elif entropy < 0.6:
-        parts.append("Un favorito claro, pero el fútbol siempre sorprende.")
+        parts.append("A clear favorite, but football always surprises.")
 
     if narr >= 0.5:
-        parts.append(f"Historia previa entre {home} y {away} añade tensión.")
+        parts.append(f"Past history between {home} and {away} adds tension.")
 
     return " ".join(parts)
 
@@ -357,6 +357,8 @@ def index():
 
 if _REACT_DIST.exists():
     app.mount("/assets", StaticFiles(directory=_REACT_DIST / "assets"), name="react-assets")
+    if (_REACT_DIST / "data").exists():
+        app.mount("/data", StaticFiles(directory=_REACT_DIST / "data"), name="react-data")
 
 
 @app.post("/api/matches")

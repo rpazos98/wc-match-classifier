@@ -15,18 +15,18 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn, onOpenC
   const hasProfile = profile && Object.keys(profile.team_affinities ?? {}).length > 0;
 
   const steps = [
-    { num: 1, label: 'Perfil',        done: !!hasProfile, active: false,                   onClick: onOpenProfile, disabled: false },
-    { num: 2, label: 'Partidos',      done: simulated,   active: activeTab === 'matches',  onClick: () => dispatch({ type: 'SET_TAB', tab: 'matches' }), disabled: false },
-    { num: 3, label: 'Personalizar',  done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
+    { num: 1, label: 'Profile',        done: !!hasProfile, active: false,                   onClick: onOpenProfile, disabled: false },
+    { num: 2, label: 'Matches',        done: simulated,   active: activeTab === 'matches',  onClick: () => dispatch({ type: 'SET_TAB', tab: 'matches' }), disabled: false },
+    { num: 3, label: 'Customize',      done: hasLearned,  active: false,                    onClick: onOpenLearn,   disabled: false },
   ];
 
   return (
     <header id="header">
       <div className="header-top">
         <div>
-          <h1>{'🏆 Tu Tiempo, Tu Mundial 2026'}</h1>
+          <h1>{'🏆 Your Time, Your World Cup 2026'}</h1>
           <p className="header-subtitle">
-            Clasificador personalizado de partidos — descubre cuales no te puedes perder
+            Personalized match classifier — discover which games you can't miss
           </p>
         </div>
         <div className="header-meta">
@@ -37,19 +37,19 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn, onOpenC
                 className={'engine-btn' + (simEngine === eng ? ' active' : '')}
                 onClick={() => dispatch({ type: 'SET_ENGINE', engine: eng })}
                 disabled={simulating}
-                title={eng === 'classic' ? 'Motor clásico: ELO → resultado → goles' : 'Motor 538: xG → Poisson → resultado'}
+                title={eng === 'classic' ? 'Classic engine: ELO → result → goals' : '538 engine: xG → Poisson → result'}
               >
-                {eng === 'classic' ? 'Clásico' : '538'}
+                {eng === 'classic' ? 'Classic' : '538'}
               </button>
             ))}
           </div>
           {simulating && (
             <span id="seed-badge" style={{ color: 'var(--amber)' }}>
-              ⏳ 5000 simulaciones...
+              ⏳ 5000 simulations...
             </span>
           )}
           {!simulating && simulated && seed != null && (
-            <span id="seed-badge">🎲 semilla {seed}</span>
+            <span id="seed-badge">🎲 seed {seed}</span>
           )}
         </div>
       </div>
@@ -72,14 +72,14 @@ export default function Header({ onOpenProfile, onSimulate, onOpenLearn, onOpenC
           </span>
         ))}
         <div className="pipe-spacer" />
-        <button className="btn btn-icon" onClick={onOpenCreator} title="Crear partido hipotetico">
+        <button className="btn btn-icon" onClick={onOpenCreator} title="Create hypothetical match">
           &#x2795;
         </button>
         <button
           className="btn btn-icon"
           onClick={onSimulate}
           disabled={simulating}
-          title={simulated ? 'Re-simular con nueva semilla' : 'Simular 5000 brackets'}
+          title={simulated ? 'Re-simulate with new seed' : 'Simulate 5000 brackets'}
         >
           {simulating ? '⏳' : simulated ? '🔄' : '▶️'}
         </button>

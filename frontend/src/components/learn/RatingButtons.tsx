@@ -31,7 +31,7 @@ export default function RatingButtons({ onRate }: Props) {
   return (
     <>
       <div className="learn-rating-label">
-        ¿Qué tan imperdible es este partido? (1 = resumen · 10 = imperdible)
+        How unmissable is this match? (1 = highlights · 10 = must watch)
       </div>
       <div className="learn-rating-row">
         {RATINGS.map((r) => {
@@ -65,8 +65,8 @@ export default function RatingButtons({ onRate }: Props) {
         })}
       </div>
       <div className="learn-rating-poles">
-        <span>Resumen</span>
-        <span>Imperdible</span>
+        <span>Highlights</span>
+        <span>Must Watch</span>
       </div>
     </>
   );

@@ -42,15 +42,15 @@ export default function GroupStandings({ standings, matches }: Props) {
 
   return (
     <>
-      <div className="bracket-section-title">Fase de Grupos</div>
+      <div className="bracket-section-title">Group Stage</div>
       <div className="group-grid">
         {standings.map((grp) => (
           <div className="group-card" key={grp.group} style={{ minWidth: 200 }}>
-            <div className="gc-hdr">Grupo {grp.group}</div>
+            <div className="gc-hdr">Group {grp.group}</div>
 
             {/* Standings table */}
             <div style={{ display: 'flex', gap: 0, padding: '4px 10px 2px', fontSize: 9, color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
-              <span style={{ flex: 1 }}>Equipo</span>
+              <span style={{ flex: 1 }}>Team</span>
               <span style={{ width: 28, textAlign: 'center' }}>Pts</span>
               <span style={{ width: 28, textAlign: 'center' }}>GD</span>
               <span style={{ width: 28, textAlign: 'center' }}>GF</span>
@@ -109,7 +109,7 @@ export default function GroupStandings({ standings, matches }: Props) {
       {allThirds.length > 0 && (
         <>
           <div className="bracket-section-title" style={{ marginTop: 24 }}>
-            Mejores Terceros
+            Best Third-Place Teams
           </div>
           <div style={{
             background: 'var(--surf2)', border: '1px solid var(--border)',
@@ -123,12 +123,12 @@ export default function GroupStandings({ standings, matches }: Props) {
               background: 'var(--border2)',
             }}>
               <span style={{ width: 24 }}>#</span>
-              <span style={{ flex: 1 }}>Equipo</span>
-              <span style={{ width: 40, textAlign: 'center' }}>Grupo</span>
+              <span style={{ flex: 1 }}>Team</span>
+              <span style={{ width: 40, textAlign: 'center' }}>Group</span>
               <span style={{ width: 36, textAlign: 'center' }}>Pts</span>
               <span style={{ width: 36, textAlign: 'center' }}>GD</span>
               <span style={{ width: 36, textAlign: 'center' }}>GF</span>
-              <span style={{ width: 60, textAlign: 'center' }}>Estado</span>
+              <span style={{ width: 60, textAlign: 'center' }}>Status</span>
             </div>
             {allThirds.map((t, i) => {
               const qualifies = i < 8;
@@ -162,7 +162,7 @@ export default function GroupStandings({ standings, matches }: Props) {
                     width: 60, textAlign: 'center', fontSize: 9, fontWeight: 800,
                     color: qualifies ? 'var(--green)' : 'var(--red)',
                   }}>
-                    {qualifies ? '\u2713 Clasifica' : '\u2717 Eliminado'}
+                    {qualifies ? '\u2713 Qualifies' : '\u2717 Eliminated'}
                   </span>
                 </div>
               );

@@ -18,7 +18,7 @@ export default function ProbabilityBar({
 
   return (
     <div className="det-pred">
-      <div className="det-section-title">Probabilidades</div>
+      <div className="det-section-title">Probabilities</div>
       <div className="pred-bar-wrap">
         <div className="pred-bar">
           <div className="pred-seg pred-home" style={{ width: `${pH}%` }}>
@@ -35,7 +35,7 @@ export default function ProbabilityBar({
           <span>
             {fl(home)} {home}
           </span>
-          <span style={{ color: 'var(--muted)' }}>Empate</span>
+          <span style={{ color: 'var(--muted)' }}>Draw</span>
           <span>
             {fl(away)} {away}
           </span>

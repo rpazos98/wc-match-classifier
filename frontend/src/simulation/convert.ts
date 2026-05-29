@@ -15,6 +15,7 @@ import type {
   ScorerWeight,
 } from '../types';
 import { scoreKOMatch, type ScoringData } from '../scoring/classify';
+import { LBL_IMP, LBL_VALE, LBL_RES } from '../utils/labels';
 
 // ── Stage metadata ───────────────────────────────────────────────────────────
 
@@ -233,7 +234,7 @@ export function convertToSimulationResponse(
       : null;
 
     const totalScore = scores?.total ?? 0;
-    const label = totalScore >= 60 ? 'Imperdible' : totalScore >= 30 ? 'Vale la pena' : 'Para ver el resumen';
+    const label = totalScore >= 60 ? LBL_IMP : totalScore >= 30 ? LBL_VALE : LBL_RES;
     const emoji = totalScore >= 60 ? '\u{1F525}' : totalScore >= 30 ? '\u{1F440}' : '\u{1F4CB}';
 
     koMatches.push({

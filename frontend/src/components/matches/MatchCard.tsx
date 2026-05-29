@@ -60,7 +60,7 @@ export default function MatchCard({ match: m }: Props) {
           {fl(m.home)} {m.home} vs {m.away} {fl(m.away)}
         </span>
         {isKoSim && (
-          <span className="ko-sim-badge" title="Equipos por simulaci\u00f3n">
+          <span className="ko-sim-badge" title="Teams from simulation">
             sim
           </span>
         )}

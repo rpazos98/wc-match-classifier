@@ -14,16 +14,16 @@ _STAGE_SCORES: dict[Stage, float] = {
 _GROUP_MD_SCORES = {1: 0.20, 2: 0.28, 3: 0.42}
 
 _STAGE_LABELS: dict[Stage, str] = {
-    Stage.GROUP: "Fase de grupos",
-    Stage.R32:   "16vos de final",
-    Stage.R16:   "Octavos de final",
-    Stage.QF:    "Cuartos de final",
-    Stage.SF:    "Semifinal",
-    Stage.THIRD: "Tercer lugar",
-    Stage.FINAL: "¡Gran Final!",
+    Stage.GROUP: "Group Stage",
+    Stage.R32:   "Round of 32",
+    Stage.R16:   "Round of 16",
+    Stage.QF:    "Quarter-finals",
+    Stage.SF:    "Semi-finals",
+    Stage.THIRD: "Third place",
+    Stage.FINAL: "Grand Final!",
 }
 
-_MD_LABELS = {1: "Jornada 1", 2: "Jornada 2", 3: "Jornada 3 — ¡Se define el grupo!"}
+_MD_LABELS = {1: "Matchday 1", 2: "Matchday 2", 3: "Matchday 3 — Group decider!"}
 
 
 @lru_cache(maxsize=1)
@@ -65,16 +65,16 @@ class MatchStageScorer(BaseScorer):
         stage = ctx.match.stage
         label = _STAGE_LABELS.get(stage, stage.value)
         scores = {
-            "Grupo J1": 0.20, "Grupo J2": 0.28, "Grupo J3": "0.42 × competitividad",
+            "Group MD1": 0.20, "Group MD2": 0.28, "Group MD3": "0.42 × competitiveness",
             "R32": 0.40, "R16": 0.55, "QF": 0.75,
-            "SF": 0.90, "3er puesto": 0.60, "Final": 1.00,
+            "SF": 0.90, "3rd place": 0.60, "Final": 1.00,
         }
         table = " | ".join(f"{k}={v}" for k, v in scores.items())
-        lines = f"Etapa: {label} → raw = {raw:.2f}\nEscala: {table}"
+        lines = f"Stage: {label} → raw = {raw:.2f}\nScale: {table}"
         if stage == Stage.GROUP:
             mn = int(ctx.match.match_id[1:])
             md = _matchdays().get(mn, 2)
             if md == 3 and ctx.prediction:
                 e = ctx.prediction.entropy
-                lines += f"\nJ3 dinámico: entropía = {e:.2f} → factor = {0.8 + 0.4*e:.2f}"
+                lines += f"\nMD3 dynamic: entropy = {e:.2f} → factor = {0.8 + 0.4*e:.2f}"
         return lines

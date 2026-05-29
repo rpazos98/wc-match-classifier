@@ -5,7 +5,7 @@ import { loadProfile } from '../../api/storage';
 import { scoreKOMatch, loadScoringData, type ScoringData } from '../../scoring/classify';
 import type { TeamProfile } from '../../simulation/engine';
 import { fl } from '../../utils/flags';
-import { scoreColor } from '../../utils/labels';
+import { scoreColor, LBL_IMP, LBL_VALE, LBL_RES } from '../../utils/labels';
 import ScoreRing from '../detail/ScoreRing';
 import ContributionList from '../detail/ContributionList';
 import ProbabilityBar from '../detail/ProbabilityBar';
@@ -13,23 +13,23 @@ import ProbabilityBar from '../detail/ProbabilityBar';
 const BASE = import.meta.env.BASE_URL ?? '/';
 
 const STAGES = [
-  { value: 'group', label: 'Fase de Grupos' },
-  { value: 'r32', label: '16vos de Final' },
-  { value: 'r16', label: 'Octavos de Final' },
-  { value: 'qf', label: 'Cuartos de Final' },
-  { value: 'sf', label: 'Semifinal' },
-  { value: 'third_place', label: 'Tercer Lugar' },
+  { value: 'group', label: 'Group Stage' },
+  { value: 'r32', label: 'Round of 32' },
+  { value: 'r16', label: 'Round of 16' },
+  { value: 'qf', label: 'Quarter-finals' },
+  { value: 'sf', label: 'Semi-finals' },
+  { value: 'third_place', label: 'Third Place' },
   { value: 'final', label: 'Final' },
 ];
 
 const STAGE_LABELS: Record<string, string> = {
-  group: 'Fase de Grupos',
-  r32: '16vos de Final',
-  r16: 'Octavos de Final',
-  qf: 'Cuartos de Final',
-  sf: 'Semifinal',
-  third_place: 'Tercer Lugar',
-  final: '¡Gran Final!',
+  group: 'Group Stage',
+  r32: 'Round of 32',
+  r16: 'Round of 16',
+  qf: 'Quarter-finals',
+  sf: 'Semi-finals',
+  third_place: 'Third Place',
+  final: 'Grand Final!',
 };
 
 const PERSONAL_WEIGHT_FAV = 0.19;
@@ -47,8 +47,10 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
   const [result, setResult] = useState<Match | null>(null);
   const [error, setError] = useState('');
   const scoringDataRef = useRef<ScoringData | null>(null);
+  // pairing key (sorted codes) → matchday (1|2|3)
+  const matchdayLookupRef = useRef<Record<string, number>>({});
 
-  // Load teams + scoring data once
+  // Load teams + scoring data + matchday lookup once
   useEffect(() => {
     if (isOpen && teams.length === 0) {
       getTeams().then(setTeams).catch(() => {});
@@ -61,26 +63,69 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
         )
         .catch(() => {});
     }
+    if (isOpen && Object.keys(matchdayLookupRef.current).length === 0) {
+      Promise.all([
+        fetch(`${BASE}data/matches.json`).then(r => r.json()),
+        fetch(`${BASE}data/matchdays.json`).then(r => r.json()),
+      ]).then(([matchesData, matchdays]: [{ matches: Array<{ match_id: string; home: string; away: string; stage: string }> }, Record<string, number>]) => {
+        const lookup: Record<string, number> = {};
+        for (const m of matchesData.matches) {
+          if (m.stage !== 'group') continue;
+          const mn = String(parseInt(m.match_id.replace('M', ''), 10));
+          const md = matchdays[mn];
+          if (md) {
+            const key = [m.home, m.away].sort().join('-');
+            lookup[key] = md;
+          }
+        }
+        matchdayLookupRef.current = lookup;
+      }).catch(() => {});
+    }
   }, [isOpen, teams.length]);
 
   const sortedTeams = useMemo(() => {
     return [...teams].filter((t) => !t.is_placeholder).sort((a, b) => a.fifa_code.localeCompare(b.fifa_code));
   }, [teams]);
 
-  const handleClassify = useCallback(() => {
-    if (!home || !away) return;
-    if (home === away) {
-      setError('Selecciona dos equipos diferentes');
+  // Derive group/matchday info for the selected pairing
+  const groupInfo = useMemo(() => {
+    if (stage !== 'group' || !home || !away) return null;
+    const hTeam = teams.find(t => t.fifa_code === home);
+    const aTeam = teams.find(t => t.fifa_code === away);
+    if (!hTeam || !aTeam) return null;
+    const sameGroup = hTeam.group_letter && hTeam.group_letter === aTeam.group_letter;
+    const key = [home, away].sort().join('-');
+    const md = matchdayLookupRef.current[key];
+    return {
+      sameGroup,
+      group: sameGroup ? hTeam.group_letter : null,
+      matchday: md ?? null,
+    };
+  }, [stage, home, away, teams]);
+
+  // Auto-classify whenever home, away, or stage changes
+  useEffect(() => {
+    if (!home || !away || home === away || !scoringDataRef.current) {
       return;
     }
-    if (!scoringDataRef.current) {
-      setError('Datos de scoring no cargados aún');
-      return;
-    }
+    classify();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [home, away, stage]);
+
+  function classify() {
+    if (!home || !away || home === away || !scoringDataRef.current) return;
     setError('');
 
     const data = scoringDataRef.current;
-    const intrinsic = scoreKOMatch(home, away, stage, undefined, data);
+
+    // Look up matchday for group stage pairings
+    let matchday: number | undefined;
+    if (stage === 'group') {
+      const key = [home, away].sort().join('-');
+      matchday = matchdayLookupRef.current[key];
+    }
+
+    const intrinsic = scoreKOMatch(home, away, stage, undefined, data, matchday);
 
     // Personal scoring
     const profile = loadProfile();
@@ -109,20 +154,20 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
         weightByScorer['Favorite Team'] = PERSONAL_WEIGHT_FAV;
         personalTotal += favContrib;
 
-        // Momento synergy
+        // Momentum synergy
         const stageRaw = rawByScorer['Match Stage'] ?? 0;
         if (favRaw > 0.3 && stageRaw > 0.35) {
           const synergy = favRaw * stageRaw * 8.0;
-          breakdown['Momento'] = Math.round(synergy * 10) / 10;
-          rawByScorer['Momento'] = Math.round(favRaw * stageRaw * 10000) / 10000;
-          weightByScorer['Momento'] = 0.08;
+          breakdown['Momentum'] = Math.round(synergy * 10) / 10;
+          rawByScorer['Momentum'] = Math.round(favRaw * stageRaw * 10000) / 10000;
+          weightByScorer['Momentum'] = 0.08;
           personalTotal += synergy;
         }
       }
     }
 
     const totalScore = Math.round(Math.min(intrinsic.total + personalTotal, 100) * 10) / 10;
-    const label = totalScore >= 60 ? 'Imperdible' : totalScore >= 30 ? 'Vale la pena' : 'Para ver el resumen';
+    const label = totalScore >= 60 ? LBL_IMP : totalScore >= 30 ? LBL_VALE : LBL_RES;
     const emoji = totalScore >= 60 ? '\u{1F525}' : totalScore >= 30 ? '\u{1F440}' : '\u{1F4CB}';
 
     const match: Match = {
@@ -130,10 +175,12 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
       home,
       away,
       stage,
-      stage_label: STAGE_LABELS[stage] ?? stage,
+      stage_label: stage === 'group' && matchday
+        ? `Group Stage — Matchday ${matchday}`
+        : (STAGE_LABELS[stage] ?? stage),
       kickoff_utc: new Date().toISOString(),
       kickoff_local: '',
-      venue: 'Hipotético',
+      venue: 'Hypothetical',
       score: totalScore,
       label,
       emoji,
@@ -156,12 +203,11 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
     };
 
     setResult(match);
-  }, [home, away, stage]);
+  }
 
   const handleSwap = useCallback(() => {
     setHome(away);
     setAway(home);
-    setResult(null);
   }, [home, away]);
 
   if (!isOpen) return null;
@@ -171,11 +217,11 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
       <div id="modal-box" style={{ maxWidth: 680 }}>
         <div className="wiz-hdr">
           <div className="wiz-hdr-top">
-            <h2>Crear Partido</h2>
+            <h2>Create Match</h2>
             <button className="btn btn-icon" onClick={onClose}>&#x2715;</button>
           </div>
           <p style={{ fontSize: 11, color: 'var(--text-sm)', padding: '0 24px 8px' }}>
-            Selecciona dos equipos y una fase para ver como el clasificador evalua ese partido.
+            Select two teams and a stage to see how the classifier evaluates that match.
           </p>
         </div>
 
@@ -183,13 +229,13 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
           {/* Team selection */}
           <div className="creator-selectors">
             <div className="creator-team-col">
-              <label className="creator-label">Local</label>
+              <label className="creator-label">Home</label>
               <select
                 value={home}
-                onChange={(e) => { setHome(e.target.value); setResult(null); }}
+                onChange={(e) => { setHome(e.target.value); }}
                 className="creator-select"
               >
-                <option value="">— Equipo —</option>
+                <option value="">— Team —</option>
                 {sortedTeams.map((t) => (
                   <option key={t.fifa_code} value={t.fifa_code} disabled={t.fifa_code === away}>
                     {fl(t.fifa_code)} {t.team_name} ({t.fifa_code})
@@ -205,20 +251,20 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
             </div>
 
             <div className="creator-vs">
-              <button className="btn btn-icon creator-swap" onClick={handleSwap} title="Intercambiar">
+              <button className="btn btn-icon creator-swap" onClick={handleSwap} title="Swap">
                 &#x21C4;
               </button>
               <span className="creator-vs-label">VS</span>
             </div>
 
             <div className="creator-team-col">
-              <label className="creator-label">Visitante</label>
+              <label className="creator-label">Away</label>
               <select
                 value={away}
-                onChange={(e) => { setAway(e.target.value); setResult(null); }}
+                onChange={(e) => { setAway(e.target.value); }}
                 className="creator-select"
               >
-                <option value="">— Equipo —</option>
+                <option value="">— Team —</option>
                 {sortedTeams.map((t) => (
                   <option key={t.fifa_code} value={t.fifa_code} disabled={t.fifa_code === home}>
                     {fl(t.fifa_code)} {t.team_name} ({t.fifa_code})
@@ -236,13 +282,13 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
 
           {/* Stage */}
           <div className="creator-stage-row">
-            <label className="creator-label">Fase</label>
+            <label className="creator-label">Stage</label>
             <div className="creator-stage-chips">
               {STAGES.map((s) => (
                 <button
                   key={s.value}
                   className={`creator-stage-chip${stage === s.value ? ' active' : ''}`}
-                  onClick={() => { setStage(s.value); setResult(null); }}
+                  onClick={() => { setStage(s.value); }}
                 >
                   {s.label}
                 </button>
@@ -250,17 +296,21 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
             </div>
           </div>
 
-          {/* Classify button */}
-          <div style={{ textAlign: 'center', margin: '16px 0 8px' }}>
-            <button
-              className="btn btn-primary"
-              onClick={handleClassify}
-              disabled={!home || !away || home === away}
-              style={{ minWidth: 200, fontSize: 14 }}
-            >
-              Clasificar Partido
-            </button>
-          </div>
+          {/* Group/matchday badge */}
+          {groupInfo && (
+            <div style={{ textAlign: 'center', margin: '8px 0 0', fontSize: 12 }}>
+              {groupInfo.sameGroup ? (
+                <span style={{ color: 'var(--text-sm)', background: 'var(--surface)', padding: '4px 12px', borderRadius: 6 }}>
+                  Group {groupInfo.group}
+                  {groupInfo.matchday && <> &middot; <strong>Matchday {groupInfo.matchday}</strong></>}
+                </span>
+              ) : (
+                <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                  Different groups — hypothetical matchup
+                </span>
+              )}
+            </div>
+          )}
 
           {error && (
             <div style={{ color: 'var(--red)', textAlign: 'center', fontSize: 12, marginTop: 4 }}>
@@ -321,7 +371,7 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
 
               <div className="creator-scores-row">
                 <div className="creator-score-pill">
-                  <span style={{ color: 'var(--text-sm)', fontSize: 10 }}>INTRINSECO</span>
+                  <span style={{ color: 'var(--text-sm)', fontSize: 10 }}>INTRINSIC</span>
                   <span style={{ color: scoreColor(result.intrinsic_score), fontWeight: 700 }}>
                     {result.intrinsic_score}
                   </span>
@@ -344,7 +394,7 @@ export default function MatchCreator({ isOpen, onClose }: Props) {
         </div>
 
         <div className="wiz-nav">
-          <button className="btn" onClick={onClose}>Cerrar</button>
+          <button className="btn" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>

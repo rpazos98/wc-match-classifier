@@ -119,14 +119,14 @@ class ScoringEngine:
         if fav_raw > 0.3 and stage_raw > 0.35:
             synergy = fav_raw * stage_raw * 8.0  # up to 8 bonus pts
             total += synergy
-            breakdown["Momento"]        = round(synergy, 1)
-            raw_by_scorer["Momento"]    = round(fav_raw * stage_raw, 4)
-            weight_by_scorer["Momento"] = 0.08
-            reason_by_scorer["Momento"] = "Tu equipo en un partido importante"
-            detail_by_scorer["Momento"] = (
-                f"Afinidad equipo = {fav_raw:.2f}, importancia etapa = {stage_raw:.2f}\n"
-                f"Bonus = afinidad × etapa × 8\n"
-                f"= {fav_raw:.2f} × {stage_raw:.2f} × 8 = {synergy:.1f} pts extra"
+            breakdown["Momentum"]        = round(synergy, 1)
+            raw_by_scorer["Momentum"]    = round(fav_raw * stage_raw, 4)
+            weight_by_scorer["Momentum"] = 0.08
+            reason_by_scorer["Momentum"] = "Your team in a high-stakes match"
+            detail_by_scorer["Momentum"] = (
+                f"Team affinity = {fav_raw:.2f}, stage importance = {stage_raw:.2f}\n"
+                f"Bonus = affinity × stage × 8\n"
+                f"= {fav_raw:.2f} × {stage_raw:.2f} × 8 = {synergy:.1f} extra pts"
             )
 
         # ── Synergy: close + high-scoring = disproportionate excitement ──
@@ -137,14 +137,14 @@ class ScoringEngine:
         if tension_raw > 0.45 and chaos_raw > 0.45:
             vecer = tension_raw * chaos_raw * 6.0  # up to 6 bonus pts
             total += vecer
-            breakdown["Espectáculo"]        = round(vecer, 1)
-            raw_by_scorer["Espectáculo"]    = round(tension_raw * chaos_raw, 4)
-            weight_by_scorer["Espectáculo"] = 0.06
-            reason_by_scorer["Espectáculo"] = "Partido cerrado y con goles — alto potencial de emoción"
-            detail_by_scorer["Espectáculo"] = (
-                f"Tensión competitiva = {tension_raw:.2f}, Potencial caótico = {chaos_raw:.2f}\n"
-                f"Referencia: Vecer (2007) — excitación ∝ goles × paridad\n"
-                f"Bonus = tensión × caos × 6 = {vecer:.1f} pts"
+            breakdown["Spectacle"]        = round(vecer, 1)
+            raw_by_scorer["Spectacle"]    = round(tension_raw * chaos_raw, 4)
+            weight_by_scorer["Spectacle"] = 0.06
+            reason_by_scorer["Spectacle"] = "Close and goal-heavy — high excitement potential"
+            detail_by_scorer["Spectacle"] = (
+                f"Competitive tension = {tension_raw:.2f}, Chaos potential = {chaos_raw:.2f}\n"
+                f"Reference: Vecer (2007) — excitement ∝ goals × parity\n"
+                f"Bonus = tension × chaos × 6 = {vecer:.1f} pts"
             )
 
         pred_dict = None

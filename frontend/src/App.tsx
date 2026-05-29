@@ -121,7 +121,7 @@ function AppInner() {
 
     rawSimData.current = data;
     applySimulation(data, profile);
-    toast(`Simulacion completa — ${sim.result.nSims} sims en ${Math.round(sim.elapsedMs ?? 0)}ms`);
+    toast(`Simulation complete — ${sim.result.nSims} sims in ${Math.round(sim.elapsedMs ?? 0)}ms`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sim.result]);
 
@@ -179,8 +179,8 @@ function AppInner() {
 
   useEffect(() => {
     if (matchError) {
-      const msg = matchError?.message ?? 'Error desconocido';
-      toast('\u26A0 Error al cargar: ' + msg);
+      const msg = matchError?.message ?? 'Unknown error';
+      toast('\u26A0 Error loading: ' + msg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchError]);
@@ -189,7 +189,7 @@ function AppInner() {
 
   const handleSimulate = useCallback(() => {
     if (!teamProfiles || !teamGroups || !groupMatches) {
-      toast('\u26A0 Datos no cargados aún');
+      toast('\u26A0 Data not loaded yet');
       return;
     }
 
@@ -217,9 +217,9 @@ function AppInner() {
         active={matchesLoading || isSimulating}
         label={
           isSimulating
-            ? `Simulando 5000 brackets... ${simProgress}%`
+            ? `Simulating 5000 brackets... ${simProgress}%`
             : matchesLoading
-              ? 'Clasificando partidos...'
+              ? 'Classifying matches...'
               : undefined
         }
       />

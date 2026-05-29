@@ -84,16 +84,16 @@ export default function KOBracket({ rounds, champion, runnerUp, thirdPlace }: Pr
 
   return (
     <>
-      <div className="bracket-section-title">Fase Eliminatoria</div>
+      <div className="bracket-section-title">Knockout Stage</div>
       <div className="ko-bracket">
-        <RoundColumn title="16vos" matches={pick(R32_NUMS)} pairSize={2} />
-        <RoundColumn title="Octavos" matches={pick(R16_NUMS)} pairSize={2} />
-        <RoundColumn title="Cuartos" matches={pick(QF_NUMS)} pairSize={2} />
-        <RoundColumn title="Semis" matches={pick(SF_NUMS)} pairSize={2} />
+        <RoundColumn title="R32" matches={pick(R32_NUMS)} pairSize={2} />
+        <RoundColumn title="R16" matches={pick(R16_NUMS)} pairSize={2} />
+        <RoundColumn title="QF" matches={pick(QF_NUMS)} pairSize={2} />
+        <RoundColumn title="SF" matches={pick(SF_NUMS)} pairSize={2} />
 
         {/* Final + Champion card */}
         <div className="ko-round" style={{ minWidth: 160 }}>
-          <div className="ko-round-title">Gran Final</div>
+          <div className="ko-round-title">Grand Final</div>
           <div className="ko-slots">
             <div
               className="ko-pair"
@@ -105,7 +105,7 @@ export default function KOBracket({ rounds, champion, runnerUp, thirdPlace }: Pr
                 <div className="champion-card">
                   <div className="champion-trophy">&#127942;</div>
                   <div className="champion-label">
-                    Campe&oacute;n Mundial 2026
+                    World Champion 2026
                   </div>
                   <div className="champion-name">
                     {fl(champion)} {champion}
@@ -120,7 +120,7 @@ export default function KOBracket({ rounds, champion, runnerUp, thirdPlace }: Pr
                 <div className="third-place-row">
                   &#129353; {fl(thirdPlace)} {thirdPlace}{' '}
                   <span style={{ color: 'var(--text-sm)', fontSize: 10 }}>
-                    3er lugar
+                    3rd place
                   </span>
                 </div>
               )}

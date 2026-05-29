@@ -63,22 +63,22 @@ class NarrativeScorer(BaseScorer):
             return 0.0, ""
 
         if raw >= 0.70:
-            label = "clásico histórico del Mundial"
+            label = "historic World Cup classic"
         elif raw >= 0.50:
-            label = "rivalidad histórica"
+            label = "historic rivalry"
         elif raw >= 0.25:
-            label = "historia en el fútbol internacional"
+            label = "history in international football"
         else:
-            label = "se han enfrentado antes"
+            label = "have met before"
 
         drama_note = ""
         if drama >= 0.7:
-            drama_note = " — historial de partidos dramáticos"
+            drama_note = " — history of dramatic matches"
         elif drama >= 0.4:
-            drama_note = " — encuentros intensos"
+            drama_note = " — intense encounters"
 
         if n_wc >= 3:
-            return raw, f"{home} vs {away} — {label} ({n_wc} duelos en el Mundial){drama_note}"
+            return raw, f"{home} vs {away} — {label} ({n_wc} World Cup meetings){drama_note}"
         return raw, f"{home} vs {away} — {label}{drama_note}"
 
     def detail(self, ctx: ScoringContext, raw: float) -> str:
@@ -86,11 +86,11 @@ class NarrativeScorer(BaseScorer):
             return ""
         n_wc, rivalry, all_h2h, drama = self._last
         return (
-            f"Duelos mundialistas = {n_wc}\n"
-            f"Rivalidad WC = {rivalry:.2f}\n"
-            f"Drama (goles, penales, rojas) = {drama:.2f}\n"
-            f"Historial total (todas las competiciones) = {all_h2h:.2f}\n"
-            f"Fórmula: 0.55×WC + 0.30×drama + 0.15×historial\n"
+            f"World Cup meetings = {n_wc}\n"
+            f"WC rivalry = {rivalry:.2f}\n"
+            f"Drama (goals, penalties, red cards) = {drama:.2f}\n"
+            f"Total history (all competitions) = {all_h2h:.2f}\n"
+            f"Formula: 0.55×WC + 0.30×drama + 0.15×history\n"
             f"= 0.55×{rivalry:.2f} + 0.30×{drama:.2f} + 0.15×{all_h2h:.2f} = {raw:.2f}\n"
-            f"Peso conservador (6%) — Tyler et al. (2024): efecto rivalidad es real pero inconsistente entre contextos"
+            f"Conservative weight (6%) — Tyler et al. (2024): rivalry effect is real but inconsistent across contexts"
         )

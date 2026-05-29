@@ -37,7 +37,7 @@ const CONTEXT_SCORERS = new Set([
 const PERSONAL_SCORERS = new Set([
   'Favorite Team',
   'Same Group',
-  'Momento',
+  'Momentum',
 ]);
 
 function ContribRowItem({ r, cls }: { r: ContribRow; cls: string }) {
@@ -163,7 +163,7 @@ export default function ContributionList({
         {visibleQualRows.length > 0 && (
           <>
             <div className="det-group-hdr">
-              <span style={{ color: '#3dd6c8' }}>CALIDAD</span>
+              <span style={{ color: '#3dd6c8' }}>QUALITY</span>
             </div>
             {visibleQualRows
               .filter((r) => r.weight >= 0.005)
@@ -176,7 +176,7 @@ export default function ContributionList({
         {visibleCtxRows.length > 0 && (
           <>
             <div className="det-group-hdr" style={{ marginTop: 4 }}>
-              <span style={{ color: '#a78bfa' }}>CONTEXTO</span>
+              <span style={{ color: '#a78bfa' }}>CONTEXT</span>
             </div>
             {visibleCtxRows
               .filter((r) => r.weight >= 0.005)
@@ -189,7 +189,7 @@ export default function ContributionList({
         {visiblePersRows.length > 0 && (
           <>
             <div className="det-group-hdr" style={{ marginTop: 4 }}>
-              <span style={{ color: 'var(--gold)' }}>TU PERFIL</span>
+              <span style={{ color: 'var(--gold)' }}>YOUR PROFILE</span>
             </div>
             {visiblePersRows.map((r) => (
               <ContribRowItem key={r.name} r={r} cls="prof-row" />
@@ -208,7 +208,7 @@ export default function ContributionList({
       {lowScorers.length > 0 && (
         <div className="det-section" style={{ paddingTop: 8 }}>
           <div className="det-section-title" style={{ color: '#e06060' }}>
-            Qu&eacute; lo frena
+            What holds it back
           </div>
           {lowScorers.map((r) => (
             <div key={r.name} className="holdback-item">

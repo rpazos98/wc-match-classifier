@@ -78,10 +78,10 @@ export default function H2HSection({
 
   return (
     <div className="det-h2h">
-      <div className="det-section-title">Historial</div>
+      <div className="det-section-title">Head to Head</div>
 
       {/* World Cup record */}
-      <div className="h2h-label">Mundiales</div>
+      <div className="h2h-label">World Cups</div>
       {h2h && h2h.matches > 0 ? (
         <>
           <div className="h2h-summary">
@@ -91,14 +91,14 @@ export default function H2HSection({
           <H2HBar h={h2h} />
         </>
       ) : (
-        <div className="h2h-summary">Primera vez</div>
+        <div className="h2h-summary">First time</div>
       )}
 
       {/* All-competition record */}
       {h2hAll && h2hAll.matches > 0 && (
         <>
           <div className="h2h-label" style={{ marginTop: 8 }}>
-            Todos los partidos
+            All matches
           </div>
           <div className="h2h-summary">
             {h2hAll.matches}p: {home} {h2hAll.a_wins}W &middot;{' '}
@@ -112,7 +112,7 @@ export default function H2HSection({
       {h2hRecent && h2hRecent.length > 0 && (
         <>
           <div className="h2h-label" style={{ marginTop: 8 }}>
-            &Uacute;ltimos partidos
+            Recent matches
           </div>
           {h2hRecent.map((r, i) => {
             const result =

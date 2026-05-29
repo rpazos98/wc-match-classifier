@@ -10,7 +10,7 @@ export default function TabBar() {
         className={'tab-btn' + (activeTab === 'matches' ? ' active' : '')}
         onClick={() => dispatch({ type: 'SET_TAB', tab: 'matches' })}
       >
-        Partidos{' '}
+        Matches{' '}
         <span className="tab-count">{matches.length || '\u2013'}</span>
       </button>
       <button

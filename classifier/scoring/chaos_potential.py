@@ -36,14 +36,14 @@ class ChaosPotentialScorer(BaseScorer):
             hg_r = round(ctx.predicted_home_goals, 1)
             ag_r = round(ctx.predicted_away_goals, 1)
             total_r = round(total, 1)
-            score_str = f"promedio {hg_r}-{ag_r} ({total_r} goles/partido)"
+            score_str = f"avg {hg_r}-{ag_r} ({total_r} goals/match)"
             if total >= 4.5:
-                return raw, f"Partido caótico: {score_str}"
+                return raw, f"Chaotic match: {score_str}"
             if total >= 3:
-                return raw, f"Partido abierto: {score_str}"
+                return raw, f"Open match: {score_str}"
             if total >= 2:
-                return raw, f"Llegadas de ambos lados: {score_str}"
-            return raw, f"Partido cerrado: {score_str}"
+                return raw, f"Chances on both ends: {score_str}"
+            return raw, f"Tight match: {score_str}"
 
         home = ctx.match.home
         away = ctx.match.away
@@ -70,9 +70,9 @@ class ChaosPotentialScorer(BaseScorer):
         self._last_stats = (avg_atk, avg_dfn, fragility)
 
         if raw >= 0.75:
-            return raw, "Dos equipos con vocación ofensiva y defensas permeables — partido abierto"
+            return raw, "Two attack-minded teams with leaky defenses — open match expected"
         if raw >= 0.55:
-            return raw, "Buen potencial ofensivo — se esperan llegadas"
+            return raw, "Good offensive potential — chances expected"
         return raw, ""
 
     def detail(self, ctx: ScoringContext, raw: float) -> str:
@@ -81,18 +81,18 @@ class ChaosPotentialScorer(BaseScorer):
             ag = ctx.predicted_away_goals
             total = hg + ag
             return (
-                f"Goles promedio por simulación: {hg:.1f} - {ag:.1f}\n"
+                f"Average goals from simulation: {hg:.1f} - {ag:.1f}\n"
                 f"Total = {total:.1f}\n"
-                f"Fórmula: min(total / 5.0, 1.0)\n"
+                f"Formula: min(total / 5.0, 1.0)\n"
                 f"= min({total:.1f} / 5.0, 1.0) = {raw:.2f}\n"
-                f"Base teórica: Vecer (2007) — más goles = más cambios de probabilidad = más emoción"
+                f"Theory: Vecer (2007) — more goals = more probability swings = more excitement"
             )
         if hasattr(self, '_last_stats'):
             avg_atk, avg_dfn, fragility = self._last_stats
             return (
-                f"Ataque promedio = {avg_atk:.2f}\n"
-                f"Defensa promedio = {avg_dfn:.2f} → fragilidad = {fragility:.2f}\n"
-                f"Fórmula: (atk×2 + fragilidad + atk×fragilidad) / 4\n"
+                f"Avg attack = {avg_atk:.2f}\n"
+                f"Avg defense = {avg_dfn:.2f} → fragility = {fragility:.2f}\n"
+                f"Formula: (atk×2 + fragility + atk×fragility) / 4\n"
                 f"= ({avg_atk:.2f}×2 + {fragility:.2f} + {avg_atk:.2f}×{fragility:.2f}) / 4 = {raw:.2f}"
             )
         return ""

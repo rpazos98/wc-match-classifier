@@ -47,7 +47,7 @@ class FavoriteTeamScorer(BaseScorer):
         for code, aff in ((home, aff_home), (away, aff_away)):
             if aff > 0:
                 parts.append(f"{code} ({_affinity_label(aff)})")
-        reason = " vs ".join(parts) if len(parts) == 2 else f"{parts[0]} está jugando"
+        reason = " vs ".join(parts) if len(parts) == 2 else f"{parts[0]} is playing"
 
         self._last = (aff_home, aff_away, hi, lo)
         return score, reason
@@ -59,9 +59,9 @@ class FavoriteTeamScorer(BaseScorer):
         home = ctx.match.home
         away = ctx.match.away
         return (
-            f"{home}: afinidad = {aff_home:.2f}\n"
-            f"{away}: afinidad = {aff_away:.2f}\n"
-            f"Fórmula: min(1.0, mayor + 0.3 × menor)\n"
+            f"{home}: affinity = {aff_home:.2f}\n"
+            f"{away}: affinity = {aff_away:.2f}\n"
+            f"Formula: min(1.0, highest + 0.3 × lowest)\n"
             f"= min(1.0, {hi:.2f} + 0.3 × {lo:.2f}) = {raw:.2f}\n"
-            f"Escala: S=1.0, A=0.65, B=0.30, sin interés=0"
+            f"Scale: S=1.0, A=0.65, B=0.30, no interest=0"
         )

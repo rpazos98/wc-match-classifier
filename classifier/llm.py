@@ -213,8 +213,8 @@ class LMStudioClient:
 
         model       = self._get_model()
         affs        = profile.get("team_affinities", {})
-        teams_str   = ", ".join(f"{t}({'fav' if v>=0.9 else 'gusta' if v>=0.5 else 'int'})" for t, v in affs.items()) or "ninguno"
-        players_str = ", ".join(profile.get("favorite_players", [])) or "ninguno"
+        teams_str   = ", ".join(f"{t}({'fav' if v>=0.9 else 'like' if v>=0.5 else 'int'})" for t, v in affs.items()) or "none"
+        players_str = ", ".join(profile.get("favorite_players", [])) or "none"
 
         # JSON schema — model MUST follow this structure
         _SCHEMA = {
@@ -247,22 +247,22 @@ class LMStudioClient:
         }
 
         system = (
-            "Eres un clasificador de partidos de fútbol. Dado el perfil de un fanático y una lista "
-            "de partidos del Mundial 2026 con sus puntuaciones de características (0.0–1.0), "
-            "clasifica cada partido.\n\n"
-            "Claves de características:\n"
-            "  Favorite Team: 1=juega su equipo fav, 0=no\n"
-            "  Match Stage: 1=Final, 0.25=Grupos\n"
-            "  Competitive Tension: 1=máxima incertidumbre, cualquiera puede ganar\n"
-            "  Form: forma reciente de los equipos\n"
-            "  Favorite Player: 1=su jugador favorito juega\n"
-            "  Chaos Potential: 1=partido abierto con muchos goles esperados\n"
-            "  Upset Potential: 1=potencial de resultado histórico inesperado\n"
-            "  Star Power: estrellas mundiales en el partido\n"
-            "  Same Group: partido en el grupo del equipo favorito\n"
-            "  Narrative: historia y rivalidad entre los equipos\n"
-            "  Time Availability: 1=dentro del horario disponible del fan\n\n"
-            "score debe ser float 0.0–100.0. reasoning debe ser una oración en español."
+            "You are a football match classifier. Given a fan's profile and a list "
+            "of World Cup 2026 matches with feature scores (0.0–1.0), "
+            "classify each match.\n\n"
+            "Feature keys:\n"
+            "  Favorite Team: 1=their fav team plays, 0=no\n"
+            "  Match Stage: 1=Final, 0.25=Groups\n"
+            "  Competitive Tension: 1=maximum uncertainty, anyone can win\n"
+            "  Form: recent form of the teams\n"
+            "  Favorite Player: 1=their favorite player plays\n"
+            "  Chaos Potential: 1=open match with many expected goals\n"
+            "  Upset Potential: 1=potential for historic upset\n"
+            "  Star Power: world-class stars in the match\n"
+            "  Same Group: match in the favorite team's group\n"
+            "  Narrative: history and rivalry between teams\n"
+            "  Time Availability: 1=within fan's available schedule\n\n"
+            "score must be float 0.0–100.0. reasoning must be one sentence in English."
         )
 
         # Batch in groups of 25 to keep prompt+output manageable
@@ -281,10 +281,10 @@ class LMStudioClient:
                 )
 
             user = (
-                f"Perfil del fanático:\n"
-                f"  Equipos favoritos: {teams_str}\n"
-                f"  Jugadores favoritos: {players_str}\n\n"
-                f"Clasifica estos {len(batch)} partidos:\n" + "\n".join(lines)
+                f"Fan profile:\n"
+                f"  Favorite teams: {teams_str}\n"
+                f"  Favorite players: {players_str}\n\n"
+                f"Classify these {len(batch)} matches:\n" + "\n".join(lines)
             )
 
             raw_content = self._chat(
@@ -305,7 +305,7 @@ class LMStudioClient:
 
     def explain_match(self, match: dict, profile: dict) -> str:
         """
-        Generate a 2-3 sentence narrative in Spanish explaining why to watch (or skip) a match.
+        Generate a 2-3 sentence narrative in English explaining why to watch (or skip) a match.
 
         match dict must have: home, away, stage_label, kickoff_local, venue,
                               label, score, raw_by_scorer
@@ -313,29 +313,29 @@ class LMStudioClient:
         """
         model       = self._get_model()
         affs        = profile.get("team_affinities", {})
-        teams_str   = ", ".join(f"{t}({'fav' if v>=0.9 else 'gusta' if v>=0.5 else 'int'})" for t, v in affs.items()) or "ninguno"
-        players_str = ", ".join(profile.get("favorite_players", [])) or "ninguno"
+        teams_str   = ", ".join(f"{t}({'fav' if v>=0.9 else 'like' if v>=0.5 else 'int'})" for t, v in affs.items()) or "none"
+        players_str = ", ".join(profile.get("favorite_players", [])) or "none"
 
         raw      = match.get("raw_by_scorer", {})
         raw_str  = "\n".join(f"  {k}: {v:.2f}" for k, v in raw.items())
 
         system = (
-            "Eres un comentarista apasionado de fútbol. En 2-3 oraciones en español, "
-            "explica de forma entretenida y específica por qué un fanático debería (o no) ver este partido. "
-            "Menciona equipos, fase del torneo y cualquier factor relevante del perfil del fanático. "
-            "Sé directo y apasionado. No uses listas ni bullet points."
+            "You are a passionate football commentator. In 2-3 sentences in English, "
+            "explain in an entertaining and specific way why a fan should (or shouldn't) watch this match. "
+            "Mention teams, tournament stage, and any relevant factors from the fan's profile. "
+            "Be direct and passionate. Don't use lists or bullet points."
         )
 
         user = (
-            f"Partido: {match.get('home','?')} vs {match.get('away','?')}\n"
-            f"Fase: {match.get('stage_label','')}\n"
-            f"Hora local: {match.get('kickoff_local','')}\n"
-            f"Sede: {match.get('venue','')}\n\n"
-            f"Puntuaciones del modelo (0.0–1.0):\n{raw_str}\n\n"
-            f"Perfil del fanático:\n"
-            f"  Equipos favoritos: {teams_str}\n"
-            f"  Jugadores favoritos: {players_str}\n\n"
-            f"Clasificación del modelo: {match.get('label','')} (score: {match.get('score',0)}/100)\n"
+            f"Match: {match.get('home','?')} vs {match.get('away','?')}\n"
+            f"Stage: {match.get('stage_label','')}\n"
+            f"Local time: {match.get('kickoff_local','')}\n"
+            f"Venue: {match.get('venue','')}\n\n"
+            f"Model scores (0.0–1.0):\n{raw_str}\n\n"
+            f"Fan profile:\n"
+            f"  Favorite teams: {teams_str}\n"
+            f"  Favorite players: {players_str}\n\n"
+            f"Model classification: {match.get('label','')} (score: {match.get('score',0)}/100)\n"
         )
 
         return self._chat(

@@ -1,8 +1,8 @@
 // ── Classification label constants ────────────────────────────────────────────
 
-export const LBL_IMP  = 'Imperdible';
-export const LBL_VALE = 'Vale la pena';
-export const LBL_RES  = 'Para ver el resumen';
+export const LBL_IMP  = 'Must Watch';
+export const LBL_VALE = 'Worth Watching';
+export const LBL_RES  = 'Catch the Highlights';
 
 // ── CSS-class helpers ─────────────────────────────────────────────────────────
 

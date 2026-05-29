@@ -4,9 +4,9 @@ from .models import ScoringResult
 THRESHOLD_IMPERDIBLE = 60.0
 THRESHOLD_VALE       = 30.0
 
-LABEL_IMPERDIBLE = "Imperdible"
-LABEL_VALE       = "Vale la pena"
-LABEL_RESUMEN    = "Para ver el resumen"
+LABEL_IMPERDIBLE = "Must Watch"
+LABEL_VALE       = "Worth Watching"
+LABEL_RESUMEN    = "Catch the Highlights"
 
 EMOJI = {
     LABEL_IMPERDIBLE: "🔥",

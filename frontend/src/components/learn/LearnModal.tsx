@@ -53,7 +53,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
     phase === 'summary' || phase === 'batch-done'
       ? `${batchLen} / ${batchLen}`
       : ratings.length > 0
-        ? `${idx + 1}/${batchLen} \u00b7 ${ratings.length} clasificados`
+        ? `${idx + 1}/${batchLen} \u00b7 ${ratings.length} rated`
         : `${idx + 1} / ${batchLen}`;
 
   // ── Boot: decide initial phase ────────────────────────────────────────
@@ -126,7 +126,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
         setIdx(0);
         setPhase('match-rating');
       } catch (e) {
-        setErrorMsg(e instanceof Error ? e.message : 'Error desconocido');
+        setErrorMsg(e instanceof Error ? e.message : 'Unknown error');
         setPhase('error');
       }
     },
@@ -185,7 +185,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
 
       setPhase('summary');
     } catch (e) {
-      setErrorMsg(e instanceof Error ? e.message : 'Error al entrenar');
+      setErrorMsg(e instanceof Error ? e.message : 'Error training');
       setPhase('error');
     }
   }, [ratings]);
@@ -197,7 +197,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
 
   // ── Reset ─────────────────────────────────────────────────────────────
   const handleReset = useCallback(async () => {
-    if (!window.confirm('¿Borrar todos los ratings y volver a los pesos por defecto?')) return;
+    if (!window.confirm('Delete all ratings and revert to default weights?')) return;
     try {
       await resetRatings();
       localStorage.removeItem('wc2026_remembered_wcs');
@@ -226,7 +226,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
   // Update footer note for match-rating
   const currentFooterNote =
     phase === 'match-rating' && matches.length > 0
-      ? `Partido ${idx + 1} de ${matches.length} — clasificalo como lo verías en vivo.`
+      ? `Match ${idx + 1} of ${matches.length} — rate it as you'd watch it live.`
       : footerNote;
 
   return (
@@ -234,7 +234,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
       <div id="learn-box">
         {/* Header */}
         <div className="learn-hdr">
-          <h2>Aprender mis preferencias</h2>
+          <h2>Learn my preferences</h2>
           <div className="learn-progress-wrap">
             <span id="learn-prog-txt">{progLabel}</span>
             <div className="learn-progress-bar">
@@ -258,7 +258,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
         <div className="learn-body" id="learn-body">
           {phase === 'loading' && (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-sm)' }}>
-              Cargando partidos históricos...
+              Loading historical matches...
             </div>
           )}
 
@@ -269,7 +269,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
           {phase === 'match-rating' && matches[idx] && (
             <>
               <div className="learn-question">
-                ¿Cómo clasificarías este partido?
+                How would you rate this match?
               </div>
               <LearnMatchCard match={matches[idx]} />
               <RatingButtons onRate={handleRate} key={matches[idx].match_id} />
@@ -280,24 +280,24 @@ export default function LearnModal({ isOpen, onClose }: Props) {
             <div style={{ textAlign: 'center', padding: '20px 0 10px' }}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>&#x1F9E0;</div>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 6 }}>
-                {ratings.length} partidos clasificados
+                {ratings.length} matches rated
               </h3>
               <p style={{ color: 'var(--text-sm)', fontSize: 12, marginBottom: 20 }}>
-                El modelo va a aprender los factores que más te importan.
+                The model will learn the factors that matter most to you.
               </p>
               <button
                 className="btn btn-primary"
                 style={{ fontSize: 13, padding: '9px 32px' }}
                 onClick={handleSubmit}
               >
-                Entrenar modelo
+                Train model
               </button>
             </div>
           )}
 
           {phase === 'training' && (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-sm)' }}>
-              Entrenando...
+              Training...
             </div>
           )}
 
@@ -331,15 +331,15 @@ export default function LearnModal({ isOpen, onClose }: Props) {
                   marginBottom: 6,
                 }}
               >
-                YA TENÉS UN MODELO ENTRENADO
+                YOU ALREADY HAVE A TRAINED MODEL
               </div>
               <div style={{ color: 'var(--text-sm)' }}>
-                {trainedInfo.nExamples} partidos acumulados
+                {trainedInfo.nExamples} matches accumulated
                 {trainedInfo.meanRating != null &&
-                  ` \u00b7 Promedio ${trainedInfo.meanRating}/10`}
+                  ` \u00b7 Average ${trainedInfo.meanRating}/10`}
                 {trainedInfo.confidence != null && (
                   <>
-                    {' \u00b7 Confianza '}
+                    {' \u00b7 Confidence '}
                     <b>{Math.round(trainedInfo.confidence * 100)}%</b>
                   </>
                 )}
@@ -367,14 +367,14 @@ export default function LearnModal({ isOpen, onClose }: Props) {
                   }}
                   onClick={handleReset}
                 >
-                  Reiniciar
+                  Reset
                 </button>
                 <button
                   className="btn btn-primary"
                   style={{ fontSize: 11, padding: '5px 14px' }}
                   onClick={handleContinueFromTrained}
                 >
-                  Agregar más partidos
+                  Add more matches
                 </button>
               </div>
             </div>
@@ -382,7 +382,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
 
           {phase === 'all-rated' && (
             <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-sm)' }}>
-              Ya clasificaste todos los partidos disponibles.
+              You've rated all available matches.
             </div>
           )}
 
@@ -402,7 +402,7 @@ export default function LearnModal({ isOpen, onClose }: Props) {
               style={{ fontSize: 11, padding: '4px 10px', color: 'var(--text-sm)' }}
               onClick={handleSkip}
             >
-              Saltar →
+              Skip →
             </button>
           </div>
         )}

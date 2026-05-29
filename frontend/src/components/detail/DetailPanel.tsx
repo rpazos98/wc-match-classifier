@@ -84,7 +84,7 @@ function SimResult({
           color: 'var(--text-sm)',
         }}
       >
-        Resultado predicho
+        Predicted result
       </span>
       <span style={{ fontSize: 14, fontWeight: 900, color: '#fff' }}>
         {fl(home)} {homeGoals} - {awayGoals} {fl(away)}
@@ -116,12 +116,12 @@ function SimPath({
   const rarePct = Math.round(rarity * 100);
   const rareLabel =
     rarePct <= 5
-      ? 'Muy raro'
+      ? 'Very rare'
       : rarePct <= 15
-        ? 'Poco frecuente'
+        ? 'Uncommon'
         : rarePct <= 40
-          ? 'Frecuente'
-          : 'Muy probable';
+          ? 'Likely'
+          : 'Very likely';
   const rareCol =
     rarePct <= 5
       ? '#e06060'
@@ -132,12 +132,12 @@ function SimPath({
           : 'var(--green)';
 
   const pathLabels: Record<string, string> = {
-    R32: '16vos',
-    R16: '8vos',
+    R32: 'R32',
+    R16: 'R16',
     QF: 'QF',
     SF: 'SF',
     F: 'Final',
-    Champ: 'Campeon',
+    Champ: 'Champion',
   };
 
   function TeamPathBars({
@@ -172,7 +172,7 @@ function SimPath({
   }
 
   return (
-    <Disclosure title="Simulacion" count={rareLabel} countColor={rareCol}>
+    <Disclosure title="Simulation" count={rareLabel} countColor={rareCol}>
       <div className="det-h2h">
         <div
           style={{
@@ -181,12 +181,12 @@ function SimPath({
             marginBottom: 10,
           }}
         >
-          Este cruce ocurre en{' '}
-          <strong style={{ color: rareCol }}>{rarePct}%</strong> de las
-          simulaciones
+          This matchup occurs in{' '}
+          <strong style={{ color: rareCol }}>{rarePct}%</strong> of
+          simulations
         </div>
         <div className="det-section-title" style={{ marginBottom: 6 }}>
-          Camino en el torneo
+          Tournament path
         </div>
         <div className="path-grid">
           <TeamPathBars team={home} path={homePath} />
@@ -222,11 +222,11 @@ export default function DetailPanel() {
         <div id="detail-empty">
           <div className="big-icon">&#9917;</div>
           <p style={{ fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>
-            Selecciona un partido
+            Select a match
           </p>
           <p>
-            Haz click en cualquier partido de la lista para ver su puntaje,
-            probabilidades y desglose completo.
+            Click any match from the list to see its score,
+            probabilities and full breakdown.
           </p>
         </div>
       </aside>
@@ -249,7 +249,7 @@ export default function DetailPanel() {
       <div id="detail-match">
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="det-header">
-          <button className="detail-close-btn" onClick={closeDetail} aria-label="Cerrar">
+          <button className="detail-close-btn" onClick={closeDetail} aria-label="Close">
             ✕
           </button>
           <div
@@ -275,7 +275,7 @@ export default function DetailPanel() {
               className={`btn comp-pin-btn${isPinned ? ' pinned' : ''}`}
               onClick={handlePin}
             >
-              {isPinned ? '\uD83D\uDCCC Fijado' : '\uD83D\uDCCC Comparar'}
+              {isPinned ? '\uD83D\uDCCC Pinned' : '\uD83D\uDCCC Compare'}
             </button>
           </div>
 
@@ -311,7 +311,7 @@ export default function DetailPanel() {
             <div className="det-split-nums">
               <span style={{ color: '#3dd6c8' }}>
                 {typeof intrinsic === 'number' ? intrinsic.toFixed(1) : intrinsic}{' '}
-                partido
+                match
               </span>
               <span style={{ color: 'var(--text-sm)' }}>=</span>
               <span style={{ color }}>{m.score}</span>
@@ -319,7 +319,7 @@ export default function DetailPanel() {
               <span style={{ color: 'var(--gold)' }}>
                 +
                 {typeof personal === 'number' ? personal.toFixed(1) : personal}{' '}
-                tu perfil
+                your profile
               </span>
             </div>
           </div>
@@ -337,7 +337,7 @@ export default function DetailPanel() {
         </div>
 
         {/* ── Probabilities ───────────────────────────────────────── */}
-        <Disclosure title="Probabilidades">
+        <Disclosure title="Probabilities">
           {m.prediction && m.home !== 'TBD' && m.away !== 'TBD' ? (
             <ProbabilityBar
               prediction={m.prediction}
@@ -352,7 +352,7 @@ export default function DetailPanel() {
                 color: 'var(--muted)',
               }}
             >
-              Sin datos de probabilidad
+              No probability data
             </div>
           )}
         </Disclosure>
@@ -378,7 +378,7 @@ export default function DetailPanel() {
           )}
 
         {/* ── H2H ─────────────────────────────────────────────────── */}
-        <Disclosure title="Historial">
+        <Disclosure title="Head to Head">
           <H2HSection
             home={m.home}
             away={m.away}
@@ -390,13 +390,13 @@ export default function DetailPanel() {
 
         {/* ── Stars ────────────────────────────────────────────────── */}
         {m.stars && m.stars.length > 0 && (
-          <Disclosure title="Estrellas" count={m.stars.length}>
+          <Disclosure title="Stars" count={m.stars.length}>
             <StarsSection stars={m.stars} />
           </Disclosure>
         )}
 
         {/* ── Contributions ───────────────────────────────────────── */}
-        <Disclosure title="Contribuciones">
+        <Disclosure title="Contributions">
           <ContributionList
             breakdown={m.breakdown}
             rawByScorer={m.raw_by_scorer}

@@ -29,7 +29,7 @@ export default function LearnSummary({
   const mean = rating_stats?.mean != null ? rating_stats.mean.toFixed(1) : '-';
   const totalStr =
     total_examples && total_examples > n
-      ? ` (${total_examples} acumulados)`
+      ? ` (${total_examples} accumulated)`
       : '';
 
   // ── Rating distribution ───────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export default function LearnSummary({
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <div style={{ fontSize: 20, marginBottom: 4 }}>&#x2705;</div>
         <div style={{ fontWeight: 800, fontSize: 14, color: '#fff' }}>
-          Modelo actualizado con {n} partidos
+          Model updated with {n} matches
           {totalStr && (
             <span
               style={{ color: 'var(--text-sm)', fontSize: 10 }}
@@ -90,12 +90,12 @@ export default function LearnSummary({
             marginTop: 2,
           }}
         >
-          Rating promedio: {mean}/10
+          Average rating: {mean}/10
           {conf != null && (
             <span
               style={{ fontSize: 11, color: 'var(--text-sm)', marginLeft: 8 }}
             >
-              Confianza:{' '}
+              Confidence:{' '}
               <b style={{ color: confColor }}>{conf}%</b>
             </span>
           )}
@@ -141,7 +141,7 @@ export default function LearnSummary({
       {/* Top features */}
       {top_features.length > 0 && (
         <div className="learn-feat-list">
-          <div className="learn-rules-title">Factores más importantes</div>
+          <div className="learn-rules-title">Most important factors</div>
           {top_features.map((f) => {
             const pct = Math.round((f.importance / maxImp) * 100);
             const label = (scorer_labels ?? {})[f.scorer] ?? f.scorer;
@@ -164,7 +164,7 @@ export default function LearnSummary({
       {/* Learned interactions */}
       {interactions && Object.keys(interactions).length > 0 && (
         <div style={{ marginTop: 12 }}>
-          <div className="learn-rules-title">Combos descubiertos</div>
+          <div className="learn-rules-title">Discovered combos</div>
           <div style={{ margin: '4px 0 6px' }}>
             {Object.entries(interactions)
               .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
@@ -216,7 +216,7 @@ export default function LearnSummary({
       {deltas.length > 0 && (
         <>
           <div className="learn-rules-title" style={{ marginTop: 12 }}>
-            Pesos ajustados
+            Adjusted weights
           </div>
           <div style={{ margin: '4px 0 10px' }}>
             {deltas.map(({ k, d }) => {
@@ -268,7 +268,7 @@ export default function LearnSummary({
           }}
           onClick={onContinue}
         >
-          +10 partidos más
+          +10 more matches
         </button>
         <button
           className="btn"
@@ -280,14 +280,14 @@ export default function LearnSummary({
           }}
           onClick={onReset}
         >
-          Reiniciar
+          Reset
         </button>
         <button
           className="btn btn-primary"
           style={{ fontSize: 13, padding: '9px 24px' }}
           onClick={onApply}
         >
-          Aplicar y cerrar
+          Apply and close
         </button>
       </div>
     </div>

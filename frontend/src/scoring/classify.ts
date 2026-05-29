@@ -2,9 +2,9 @@
  * Client-side intrinsic match scoring for KO matches.
  *
  * Ports 6 scorers from Python (Competitive Tension, Star Power,
- * Chaos Potential, Form, Narrative, Match Stage) plus Espectáculo synergy.
+ * Chaos Potential, Form, Narrative, Match Stage) plus Spectacle synergy.
  *
- * Personal scorers (Favorite Team, Same Group, Momento) stay in personal.ts.
+ * Personal scorers (Favorite Team, Same Group, Momentum) stay in personal.ts.
  */
 
 import type { TeamProfile } from '../simulation/engine';
@@ -74,13 +74,20 @@ const STAGE_RAW: Record<string, number> = {
   final: 1.00,
 };
 
+const GROUP_MD_RAW: Record<number, number> = { 1: 0.20, 2: 0.28, 3: 0.42 };
+const GROUP_MD_LABELS: Record<number, string> = {
+  1: 'Matchday 1',
+  2: 'Matchday 2',
+  3: 'Matchday 3 — Group decider!',
+};
+
 const STAGE_LABELS: Record<string, string> = {
-  r32: '16vos de final',
-  r16: 'Octavos de final',
-  qf: 'Cuartos de final',
-  sf: 'Semifinal',
-  third_place: 'Tercer lugar',
-  final: '¡Gran Final!',
+  r32: 'Round of 32',
+  r16: 'Round of 16',
+  qf: 'Quarter-finals',
+  sf: 'Semi-finals',
+  third_place: 'Third place',
+  final: 'Grand Final!',
 };
 
 const STAR_TIER_BASE = 84;
@@ -140,9 +147,9 @@ function scoreCompetitiveTension(
   const raw = Math.min(1.0, base + vecerBonus);
 
   let reason = '';
-  if (raw >= 0.75) reason = 'duelo de élites completamente abierto';
-  else if (raw >= 0.55) reason = 'partido equilibrado de buen nivel';
-  else if (raw >= 0.40) reason = 'resultado incierto';
+  if (raw >= 0.75) reason = 'wide-open clash between elite sides';
+  else if (raw >= 0.55) reason = 'well-matched quality contest';
+  else if (raw >= 0.40) reason = 'uncertain outcome';
 
   return [raw, reason];
 }
@@ -185,14 +192,14 @@ function scoreStarPower(
   ];
 
   const display = [...hStars, ...aStars].slice(0, 4).map(s => s.name);
-  const suffix = hStars.length + aStars.length > 4 ? ' y más' : '';
+  const suffix = hStars.length + aStars.length > 4 ? ' and more' : '';
 
   let reason: string;
   if (bothElite) {
-    reason = 'Duelo de estrellas: ' + display.slice(0, 2).join(' vs ');
+    reason = 'Star showdown: ' + display.slice(0, 2).join(' vs ');
     if (display.length > 2) reason += ' + ' + display.slice(2).join(', ') + suffix;
   } else {
-    reason = display.join(', ') + suffix + ' en la cancha';
+    reason = display.join(', ') + suffix + ' on the pitch';
   }
 
   return [raw, reason, allStars];
@@ -211,11 +218,11 @@ function scoreChaosPotential(
     const hg = Math.round(avgGoals[0] * 10) / 10;
     const ag = Math.round(avgGoals[1] * 10) / 10;
     const totalR = Math.round(total * 10) / 10;
-    const scoreStr = `promedio ${hg}-${ag} (${totalR} goles/partido)`;
-    if (total >= 4.5) return [raw, `Partido caótico: ${scoreStr}`];
-    if (total >= 3) return [raw, `Partido abierto: ${scoreStr}`];
-    if (total >= 2) return [raw, `Llegadas de ambos lados: ${scoreStr}`];
-    return [raw, `Partido cerrado: ${scoreStr}`];
+    const scoreStr = `avg ${hg}-${ag} (${totalR} goals/match)`;
+    if (total >= 4.5) return [raw, `Chaotic match: ${scoreStr}`];
+    if (total >= 3) return [raw, `Open match: ${scoreStr}`];
+    if (total >= 2) return [raw, `Chances on both ends: ${scoreStr}`];
+    return [raw, `Tight match: ${scoreStr}`];
   }
 
   // Fallback: attack/defense from profiles
@@ -228,8 +235,8 @@ function scoreChaosPotential(
   const fragility = 1.0 - avgDfn;
   const raw = Math.min(1.0, (avgAtk * 2 + fragility + avgAtk * fragility) / 4.0);
 
-  if (raw >= 0.75) return [raw, 'Dos equipos con vocación ofensiva y defensas permeables — partido abierto'];
-  if (raw >= 0.55) return [raw, 'Buen potencial ofensivo — se esperan llegadas'];
+  if (raw >= 0.75) return [raw, 'Two attack-minded teams with leaky defenses — open match expected'];
+  if (raw >= 0.55) return [raw, 'Good offensive potential — chances expected'];
   return [raw, ''];
 }
 
@@ -246,7 +253,7 @@ function scoreForm(
 
   const hot = teams.filter((_t, i) => norms[i] >= 0.65);
   if (hot.length > 0) {
-    return [raw, `${hot.join(' y ')} en gran momento de forma`];
+    return [raw, `${hot.join(' & ')} in great form`];
   }
   return [raw, ''];
 }
@@ -264,23 +271,26 @@ function scoreNarrative(
   if (raw < 0.10) return [0, ''];
 
   let label: string;
-  if (raw >= 0.70) label = 'clásico histórico del Mundial';
-  else if (raw >= 0.50) label = 'rivalidad histórica';
-  else if (raw >= 0.25) label = 'historia en el fútbol internacional';
-  else label = 'se han enfrentado antes';
+  if (raw >= 0.70) label = 'historic World Cup classic';
+  else if (raw >= 0.50) label = 'historic rivalry';
+  else if (raw >= 0.25) label = 'history in international football';
+  else label = 'have met before';
 
   let dramaNot = '';
-  if (entry.drama >= 0.7) dramaNot = ' — historial de partidos dramáticos';
-  else if (entry.drama >= 0.4) dramaNot = ' — encuentros intensos';
+  if (entry.drama >= 0.7) dramaNot = ' — history of dramatic matches';
+  else if (entry.drama >= 0.4) dramaNot = ' — intense encounters';
 
   const reason = entry.meetings >= 3
-    ? `${homeCode} vs ${awayCode} — ${label} (${entry.meetings} duelos en el Mundial)${dramaNot}`
+    ? `${homeCode} vs ${awayCode} — ${label} (${entry.meetings} World Cup meetings)${dramaNot}`
     : `${homeCode} vs ${awayCode} — ${label}${dramaNot}`;
 
   return [raw, reason];
 }
 
-function scoreMatchStage(stage: string): [number, string] {
+function scoreMatchStage(stage: string, matchday?: number): [number, string] {
+  if (stage === 'group' && matchday && GROUP_MD_RAW[matchday] !== undefined) {
+    return [GROUP_MD_RAW[matchday], GROUP_MD_LABELS[matchday]];
+  }
   const raw = STAGE_RAW[stage] ?? 0.5;
   const label = STAGE_LABELS[stage] ?? stage;
   return [raw, label];
@@ -289,13 +299,13 @@ function scoreMatchStage(stage: string): [number, string] {
 // ── Archetype & narrative ────────────────────────────────────────────────────
 
 const STAGE_NARRATIVE: Record<string, string> = {
-  group: 'fase de grupos',
-  r32: '16vos de final',
-  r16: 'octavos de final',
-  qf: 'cuartos de final',
-  sf: 'semifinal',
-  third_place: 'tercer lugar',
-  final: 'la gran final',
+  group: 'group stage',
+  r32: 'round of 32',
+  r16: 'round of 16',
+  qf: 'quarter-finals',
+  sf: 'semi-finals',
+  third_place: 'third place',
+  final: 'the grand final',
 };
 
 function matchArchetype(
@@ -311,17 +321,17 @@ function matchArchetype(
   const archetypes: Array<[string, string, string, number]> = [];
 
   if (stage >= 0.7)
-    archetypes.push(['decisive', '\u{1F525}', 'Partido decisivo', stage]);
+    archetypes.push(['decisive', '\u{1F525}', 'Decisive match', stage]);
   if (tension >= 0.55 && chaos >= 0.55)
-    archetypes.push(['spectacle', '\u{1F3AD}', 'Espectáculo asegurado', (tension + chaos) / 2]);
+    archetypes.push(['spectacle', '\u{1F3AD}', 'Guaranteed spectacle', (tension + chaos) / 2]);
   if (chaos >= 0.6)
-    archetypes.push(['chaos', '\u26A1', 'Partido abierto', chaos]);
+    archetypes.push(['chaos', '\u26A1', 'Open match', chaos]);
   if (narr >= 0.4)
-    archetypes.push(['rivalry', '\u2694\uFE0F', 'Clásico con historia', narr]);
+    archetypes.push(['rivalry', '\u2694\uFE0F', 'Historic rivalry', narr]);
   if (stars >= 0.5)
-    archetypes.push(['showcase', '\u{1F451}', 'Exhibición de estrellas', stars]);
+    archetypes.push(['showcase', '\u{1F451}', 'Star showcase', stars]);
   if (tension >= 0.7 && chaos < 0.55)
-    archetypes.push(['tactical', '\u{1F9E0}', 'Duelo táctico', tension]);
+    archetypes.push(['tactical', '\u{1F9E0}', 'Tactical duel', tension]);
 
   if (archetypes.length > 0) {
     const best = archetypes.reduce((a, b) => (b[3] > a[3] ? b : a));
@@ -329,8 +339,8 @@ function matchArchetype(
   }
 
   if (tension >= 0.6)
-    return { key: 'balanced', icon: '\u2696\uFE0F', label: 'Partido equilibrado' };
-  return { key: 'standard', icon: '\u26BD', label: 'Partido de grupo' };
+    return { key: 'balanced', icon: '\u2696\uFE0F', label: 'Balanced match' };
+  return { key: 'standard', icon: '\u26BD', label: 'Group match' };
 }
 
 function matchNarrative(
@@ -349,23 +359,23 @@ function matchNarrative(
   const parts: string[] = [];
 
   if (stageRaw >= 0.75)
-    parts.push(`Partido de ${stageName} con todo en juego.`);
+    parts.push(`${stageName} match with everything on the line.`);
   else if (stageRaw >= 0.35)
-    parts.push(`Encuentro de ${stageName} con implicaciones en la tabla.`);
+    parts.push(`${stageName} encounter with table implications.`);
   else
-    parts.push(`Duelo de ${stageName}.`);
+    parts.push(`${stageName} clash.`);
 
   if (tension >= 0.55 && chaos >= 0.55)
-    parts.push('Parejo y con goles esperados \u2014 la combinación que más emoción genera.');
+    parts.push('Close and high-scoring \u2014 the combination that generates the most excitement.');
   else if (tension >= 0.7)
-    parts.push('Equipos muy parejos \u2014 resultado completamente abierto.');
+    parts.push('Evenly matched teams \u2014 wide-open outcome.');
   else if (chaos >= 0.6)
-    parts.push('Partido abierto donde se esperan goles.');
+    parts.push('Open match where goals are expected.');
   else if (entropy < 0.6)
-    parts.push('Un favorito claro, pero el fútbol siempre sorprende.');
+    parts.push('A clear favorite, but football always surprises.');
 
   if (narr >= 0.5)
-    parts.push(`Historia previa entre ${home} y ${away} añade tensión.`);
+    parts.push(`Past history between ${home} and ${away} adds tension.`);
 
   return parts.join(' ');
 }
@@ -378,6 +388,7 @@ export function scoreKOMatch(
   stage: string,
   avgGoals: [number, number] | undefined,
   data: ScoringData,
+  matchday?: number,
 ): IntrinsicScores {
   const { profiles, teamStars, h2h } = data;
 
@@ -391,7 +402,7 @@ export function scoreKOMatch(
   const [chaosRaw, chaosReason] = scoreChaosPotential(homeCode, awayCode, avgGoals, profiles);
   const [formRaw, formReason] = scoreForm(homeCode, awayCode, profiles);
   const [narrativeRaw, narrativeReason] = scoreNarrative(homeCode, awayCode, h2h);
-  const [stageRaw, stageReason] = scoreMatchStage(stage);
+  const [stageRaw, stageReason] = scoreMatchStage(stage, matchday);
 
   const scorers: Array<[string, number, string]> = [
     ['Competitive Tension', tensionRaw, tensionReason ? `${homeCode} vs ${awayCode} — ${tensionReason}` : ''],
@@ -418,14 +429,14 @@ export function scoreKOMatch(
     total += contrib;
   }
 
-  // Espectáculo synergy: close + high-scoring
+  // Spectacle synergy: close + high-scoring
   if (tensionRaw > 0.45 && chaosRaw > 0.45) {
     const vecer = tensionRaw * chaosRaw * 6.0;
     total += vecer;
-    breakdown['Espectáculo'] = Math.round(vecer * 10) / 10;
-    raw_by_scorer['Espectáculo'] = Math.round(tensionRaw * chaosRaw * 10000) / 10000;
-    weight_by_scorer['Espectáculo'] = 0.06;
-    reason_by_scorer['Espectáculo'] = 'Partido cerrado y con goles — alto potencial de emoción';
+    breakdown['Spectacle'] = Math.round(vecer * 10) / 10;
+    raw_by_scorer['Spectacle'] = Math.round(tensionRaw * chaosRaw * 10000) / 10000;
+    weight_by_scorer['Spectacle'] = 0.06;
+    reason_by_scorer['Spectacle'] = 'Close and goal-heavy — high excitement potential';
   }
 
   const prediction = {

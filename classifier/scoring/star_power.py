@@ -79,14 +79,14 @@ class StarPowerScorer(BaseScorer):
 
         all_stars = home_stars + away_stars
         display   = all_stars[:4]
-        suffix    = " y más" if len(all_stars) > 4 else ""
+        suffix    = " and more" if len(all_stars) > 4 else ""
 
         if both_elite:
-            reason = "Duelo de estrellas: " + " vs ".join(display[:2])
+            reason = "Star showdown: " + " vs ".join(display[:2])
             if len(display) > 2:
                 reason += " + " + ", ".join(display[2:]) + suffix
         else:
-            reason = ", ".join(display) + suffix + " en la cancha"
+            reason = ", ".join(display) + suffix + " on the pitch"
 
         self._last = (depth_h, depth_a, best_h, best_a, both_elite, home_stars, away_stars)
         return raw, reason
@@ -103,12 +103,12 @@ class StarPowerScorer(BaseScorer):
             top3 = stars[:3]
             if top3:
                 descs = [f"{n} ({ratings.get(n, '?')})" for n in top3]
-                lines.append(f"{team}: {', '.join(descs)} → profundidad = {depth:.2f}")
+                lines.append(f"{team}: {', '.join(descs)} → depth = {depth:.2f}")
             else:
-                lines.append(f"{team}: sin estrellas 85+")
-        lines.append(f"Fórmula: (profundidad_local + profundidad_visitante) / 2")
+                lines.append(f"{team}: no stars 85+")
+        lines.append(f"Formula: (home_depth + away_depth) / 2")
         lines.append(f"= ({depth_h:.2f} + {depth_a:.2f}) / 2 = {(depth_h+depth_a)/2:.2f}")
         if both_elite:
-            lines.append(f"Boost dual-elite (×1.4): ambos tienen 90+ OVR")
+            lines.append(f"Dual-elite boost (×1.4): both have 90+ OVR")
         lines.append(f"Raw final = {raw:.2f}")
         return "\n".join(lines)
